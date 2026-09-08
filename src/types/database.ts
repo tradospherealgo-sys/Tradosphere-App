@@ -1,0 +1,677 @@
+/**
+ * Hand-authored types mirroring supabase/migrations/*.sql.
+ *
+ * `Table<Row, Required>` collapses the Row/Insert/Update triple PostgREST's
+ * client expects into a single declaration, so a schema change is a one-line
+ * edit here rather than three. Once a real project is linked these can be
+ * replaced wholesale with `supabase gen types typescript` output — see README.
+ */
+
+export type AppRole = "user" | "admin";
+export type OrderSide = "BUY" | "SELL";
+export type OrderStatus = "FILLED" | "REJECTED" | "CANCELLED";
+export type InstrumentKind = "EQUITY" | "INDEX_OPTION" | "STOCK_OPTION";
+export type NotificationKind =
+  | "system"
+  | "trade"
+  | "signal"
+  | "education"
+  | "announcement";
+export type Verdict = "BULLISH" | "BEARISH" | "NEUTRAL";
+
+export type SignalSourceKind =
+  | "smc_specialist"
+  | "smc_auto_trender"
+  | "tradosphere_ai"
+  | "telegram_channel"
+  | "manual";
+
+export type SignalStatus =
+  | "pending"
+  | "active"
+  | "triggered"
+  | "target_hit"
+  | "stopped_out"
+  | "expired"
+  | "cancelled";
+
+export type VerificationState = "unverified" | "verified" | "rejected";
+
+export type BillingInterval = "monthly" | "quarterly" | "yearly";
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "expired"
+  | "cancelled";
+export type PaymentStatus = "pending" | "succeeded" | "failed" | "refunded";
+export type LessonKind = "text" | "video" | "slides" | "pdf" | "quiz";
+
+/** A structured prose block used by lesson bodies and agent rationales. */
+/** A heading is optional — a standalone paragraph is a valid block. */
+export type ProseBlock = {
+  h?: string;
+  p: string;
+}
+
+/**
+ * Shape of one foreign key as PostgREST reports it. Declaring a relationship
+ * here is what lets `.select("*, child(*)")` resolve to a typed embed instead
+ * of a SelectQueryError — so only the FKs actually used in embedded selects
+ * need to be listed.
+ */
+type Relationship = {
+  foreignKeyName: string;
+  columns: string[];
+  isOneToOne: boolean;
+  referencedRelation: string;
+  referencedColumns: string[];
+};
+
+type Table<
+  Row,
+  RequiredOnInsert extends keyof Row = never,
+  Rels extends Relationship[] = [],
+> = {
+  Row: Row;
+  Insert: Partial<Row> & Pick<Row, RequiredOnInsert>;
+  Update: Partial<Row>;
+  Relationships: Rels;
+};
+
+export type Profile = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: AppRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PaperAccount = {
+  id: string;
+  user_id: string;
+  starting_capital: number;
+  cash_balance: number;
+  risk_per_trade_pct: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Order = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  symbol: string;
+  instrument_kind: InstrumentKind;
+  side: OrderSide;
+  quantity: number;
+  price: number;
+  status: OrderStatus;
+  reject_reason: string | null;
+  quote_source: string | null;
+  quote_as_of: string | null;
+  stop_loss: number | null;
+  target_price: number | null;
+  notes: string | null;
+  signal_id: string | null;
+  created_at: string;
+}
+
+export type Position = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  symbol: string;
+  instrument_kind: InstrumentKind;
+  side: OrderSide;
+  quantity: number;
+  avg_price: number;
+  stop_loss: number | null;
+  target_price: number | null;
+  opened_at: string;
+  updated_at: string;
+}
+
+export type Trade = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  symbol: string;
+  side: OrderSide;
+  quantity: number;
+  entry_price: number;
+  exit_price: number;
+  realized_pnl: number;
+  stop_loss: number | null;
+  target_price: number | null;
+  r_multiple: number | null;
+  opened_at: string;
+  closed_at: string;
+  origin: string | null;
+  notes: string | null;
+  signal_id: string | null;
+}
+
+export type Instrument = {
+  id: string;
+  symbol: string;
+  exchange: string;
+  name: string | null;
+  instrument_kind: InstrumentKind;
+  lot_size: number;
+  tick_size: number;
+  is_index: boolean;
+  is_active: boolean;
+  provider_token: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export type SignalSource = {
+  id: string;
+  slug: string;
+  name: string;
+  kind: SignalSourceKind;
+  description: string | null;
+  telegram_chat_id: string | null;
+  is_trusted: boolean;
+  is_active: boolean;
+  auto_verify: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Signal = {
+  id: string;
+  source_id: string;
+  symbol: string;
+  instrument_kind: InstrumentKind;
+  direction: OrderSide;
+  entry_price: number | null;
+  entry_low: number | null;
+  entry_high: number | null;
+  stop_loss: number | null;
+  target_1: number | null;
+  target_2: number | null;
+  target_3: number | null;
+  /** Generated column — null unless entry, stop and target were all published. */
+  risk_reward: number | null;
+  confidence: number | null;
+  rationale: string | null;
+  risk_note: string | null;
+  status: SignalStatus;
+  verification_state: VerificationState;
+  verified_by: string | null;
+  verified_at: string | null;
+  origin_ref: string | null;
+  raw_message: string | null;
+  issued_at: string;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SignalEvent = {
+  id: number;
+  signal_id: string;
+  event_type: string;
+  detail: string | null;
+  payload: Record<string, unknown>;
+  actor_id: string | null;
+  created_at: string;
+}
+
+export type TelegramInboxRow = {
+  id: number;
+  chat_id: string;
+  message_id: number;
+  sender: string | null;
+  text: string;
+  raw: Record<string, unknown>;
+  source_id: string | null;
+  parse_status: "pending" | "parsed" | "unparseable" | "ignored";
+  parse_error: string | null;
+  signal_id: string | null;
+  received_at: string;
+}
+
+export type Plan = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  billing_interval: BillingInterval;
+  price_minor: number;
+  currency: string;
+  entitlements: string[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Subscription = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: SubscriptionStatus;
+  started_at: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancelled_at: string | null;
+  source: "admin_grant" | "payment_gateway";
+  external_ref: string | null;
+  granted_by: string | null;
+  expiry_warned_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Payment = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  subscription_id: string | null;
+  amount_minor: number;
+  currency: string;
+  status: PaymentStatus;
+  gateway: string | null;
+  gateway_ref: string | null;
+  failure_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Course = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  description: string | null;
+  cover_url: string | null;
+  level: "beginner" | "intermediate" | "advanced";
+  is_free: boolean;
+  required_entitlement: string | null;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CourseModule = {
+  id: string;
+  course_id: string;
+  title: string;
+  summary: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Lesson = {
+  id: string;
+  module_id: string;
+  slug: string;
+  title: string;
+  blurb: string | null;
+  kind: LessonKind;
+  body: ProseBlock[];
+  asset_url: string | null;
+  minutes: number;
+  sort_order: number;
+  is_preview: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type LessonProgress = {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  progress_pct: number;
+  completed_at: string | null;
+  updated_at: string;
+}
+
+export type CourseEnrollment = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  enrolled_at: string;
+  completed_at: string | null;
+}
+
+export type CoachMessage = {
+  id: number;
+  user_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export type Notification = {
+  id: string;
+  user_id: string | null;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export type IntegrationConfig = {
+  id: string;
+  provider: string;
+  config: Record<string, unknown>;
+  secret_env_var: string | null;
+  is_enabled: boolean;
+  last_tested_at: string | null;
+  last_test_result: Record<string, unknown> | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export type AuditLog = {
+  id: number;
+  actor_id: string | null;
+  action: string;
+  target_table: string | null;
+  target_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export type AgentVerdict = {
+  id: string;
+  symbol: string;
+  agent_name: string;
+  focus: string | null;
+  verdict: Verdict;
+  confidence: number | null;
+  thesis: string | null;
+  rationale: ProseBlock[] | null;
+  suggested_action: string | null;
+  generated_at: string;
+}
+
+export type Watchlist = {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+}
+
+export type WatchlistItem = {
+  id: string;
+  watchlist_id: string;
+  symbol: string;
+  added_at: string;
+}
+
+export type Database = {
+  public: {
+    Tables: {
+      profiles: Table<Profile, "id" | "email">;
+      paper_accounts: Table<PaperAccount, "user_id">;
+      orders: Table<
+        Order,
+        "account_id" | "user_id" | "symbol" | "side" | "quantity" | "price"
+      >;
+      positions: Table<
+        Position,
+        "account_id" | "user_id" | "symbol" | "side" | "quantity" | "avg_price"
+      >;
+      trades: Table<
+        Trade,
+        | "account_id"
+        | "user_id"
+        | "symbol"
+        | "side"
+        | "quantity"
+        | "entry_price"
+        | "exit_price"
+        | "realized_pnl"
+        | "opened_at"
+      >;
+      instruments: Table<Instrument, "symbol">;
+      watchlists: Table<Watchlist, "user_id">;
+      watchlist_items: Table<
+        WatchlistItem,
+        "watchlist_id" | "symbol",
+        [
+          {
+            foreignKeyName: "watchlist_items_watchlist_id_fkey";
+            columns: ["watchlist_id"];
+            isOneToOne: false;
+            referencedRelation: "watchlists";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      market_data_cache: Table<
+        {
+          symbol: string;
+          name: string | null;
+          last_price: number | null;
+          prev_close: number | null;
+          day_open: number | null;
+          day_high: number | null;
+          day_low: number | null;
+          volume: number | null;
+          as_of: string | null;
+          source: string;
+          raw: unknown;
+          updated_at: string;
+        },
+        "symbol" | "source"
+      >;
+      ohlc_candles: Table<
+        {
+          id: number;
+          symbol: string;
+          interval: string;
+          ts: string;
+          open: number;
+          high: number;
+          low: number;
+          close: number;
+          volume: number | null;
+          source: string;
+        },
+        "symbol" | "interval" | "ts" | "open" | "high" | "low" | "close" | "source"
+      >;
+      option_chain_snapshots: Table<
+        {
+          id: number;
+          underlying: string;
+          expiry: string;
+          strike: number;
+          option_type: "CE" | "PE";
+          ltp: number | null;
+          bid: number | null;
+          ask: number | null;
+          volume: number | null;
+          oi: number | null;
+          change_oi: number | null;
+          iv: number | null;
+          delta: number | null;
+          gamma: number | null;
+          theta: number | null;
+          vega: number | null;
+          spot_at_capture: number | null;
+          source: string;
+          captured_at: string;
+        },
+        "underlying" | "expiry" | "strike" | "option_type" | "source"
+      >;
+      signal_sources: Table<SignalSource, "slug" | "name" | "kind">;
+      signals: Table<
+        Signal,
+        "source_id" | "symbol" | "direction",
+        [
+          {
+            foreignKeyName: "signals_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "signal_sources";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      signal_events: Table<SignalEvent, "signal_id" | "event_type">;
+      telegram_inbox: Table<
+        TelegramInboxRow,
+        "chat_id" | "message_id" | "text" | "raw"
+      >;
+      plans: Table<Plan, "slug" | "name" | "billing_interval" | "price_minor">;
+      subscriptions: Table<
+        Subscription,
+        "user_id" | "plan_id" | "current_period_end",
+        [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "subscriptions_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      payments: Table<
+        Payment,
+        "user_id" | "plan_id" | "amount_minor",
+        [
+          {
+            foreignKeyName: "payments_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      courses: Table<Course, "slug" | "title">;
+      course_modules: Table<
+        CourseModule,
+        "course_id" | "title",
+        [
+          {
+            foreignKeyName: "course_modules_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      lessons: Table<
+        Lesson,
+        "module_id" | "slug" | "title",
+        [
+          {
+            foreignKeyName: "lessons_module_id_fkey";
+            columns: ["module_id"];
+            isOneToOne: false;
+            referencedRelation: "course_modules";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      lesson_progress: Table<LessonProgress, "user_id" | "lesson_id">;
+      course_enrollments: Table<CourseEnrollment, "user_id" | "course_id">;
+      coach_messages: Table<CoachMessage, "user_id" | "role" | "content">;
+      ai_agent_verdicts: Table<AgentVerdict, "symbol" | "agent_name" | "verdict">;
+      notifications: Table<Notification, "title">;
+      integration_configs: Table<IntegrationConfig, "id" | "provider">;
+      system_settings: Table<
+        {
+          key: string;
+          value: unknown;
+          description: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        },
+        "key" | "value"
+      >;
+      audit_logs: Table<AuditLog, "action">;
+    };
+    Views: Record<string, never>;
+    Functions: {
+      place_paper_order: {
+        Args: {
+          p_symbol: string;
+          p_side: string;
+          p_quantity: number;
+          p_price: number;
+          p_instrument_kind?: string;
+          p_quote_source?: string | null;
+          p_quote_as_of?: string | null;
+          p_stop_loss?: number | null;
+          p_target_price?: number | null;
+          p_signal_id?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Order;
+      };
+      update_position_risk: {
+        Args: {
+          p_position_id: string;
+          p_stop_loss?: number | null;
+          p_target_price?: number | null;
+        };
+        Returns: Position;
+      };
+      reset_paper_account: { Args: Record<string, never>; Returns: PaperAccount };
+      admin_set_user_role: { Args: { p_user_id: string; p_role: AppRole }; Returns: Profile };
+      admin_set_user_active: {
+        Args: { p_user_id: string; p_is_active: boolean };
+        Returns: Profile;
+      };
+      bootstrap_first_admin: { Args: { p_email: string }; Returns: Profile };
+      write_audit_log: {
+        Args: {
+          p_action: string;
+          p_target_table?: string | null;
+          p_target_id?: string | null;
+          p_metadata?: Record<string, unknown>;
+        };
+        Returns: void;
+      };
+      admin_verify_signal: { Args: { p_signal_id: string; p_release?: boolean }; Returns: Signal };
+      system_release_signal: { Args: { p_signal_id: string }; Returns: Signal };
+      admin_update_signal_status: {
+        Args: { p_signal_id: string; p_status: SignalStatus; p_detail?: string | null };
+        Returns: Signal;
+      };
+      admin_grant_subscription: {
+        Args: { p_user_id: string; p_plan_id: string };
+        Returns: Subscription;
+      };
+      admin_cancel_subscription: { Args: { p_subscription_id: string }; Returns: Subscription };
+      start_checkout: { Args: { p_plan_id: string }; Returns: Payment };
+      record_payment_success: {
+        Args: { p_payment_id: string; p_gateway: string; p_gateway_ref: string };
+        Returns: Subscription;
+      };
+      expire_lapsed_subscriptions: { Args: Record<string, never>; Returns: number };
+      warn_expiring_subscriptions: { Args: { p_days: number }; Returns: number };
+      current_entitlements: { Args: Record<string, never>; Returns: string[] };
+      has_entitlement: { Args: { p_key: string }; Returns: boolean };
+      can_access_course: { Args: { p_course_id: string }; Returns: boolean };
+    };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+}

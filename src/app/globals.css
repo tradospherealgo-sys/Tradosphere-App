@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/*
+ * "Nocturne" design tokens — ported from the Tradosphere Wealth Management
+ * UI reference (Tradosphere-Wealth-Management-OS.html). Dark, premium
+ * wealth-management aesthetic. This app is dark-mode only by design.
+ */
+:root {
+  --color-bg: #0d0e17;
+  --color-surface: #161826;
+  --color-surface-raised: #1d2033;
+  --color-border: #2a2d42;
+  --color-text: #e8e9f3;
+  --color-text-muted: #9497b0;
+  --color-text-faint: #6c6f87;
+  --color-accent: #9184d9;
+  --color-accent-strong: #a99cf0;
+  --color-up: #2fbf7a;
+  --color-down: #e0616b;
+  --color-warn: #e0a63f;
+
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-border: var(--color-border);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-faint: var(--color-text-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-strong: var(--color-accent-strong);
+  --color-up: var(--color-up);
+  --color-down: var(--color-down);
+  --color-warn: var(--color-warn);
+  --font-sans: var(--font-inter);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #0d0e17;
+}
+
+/*
+ * Android-first defaults.
+ *
+ * A single over-wide table used to push the whole document sideways, so the
+ * page could be dragged off-screen horizontally. Clipping at the root turns
+ * that into a bug contained by whichever element actually overflows — those
+ * scroll on their own, inside `overflow-x-auto` wrappers.
+ */
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * Chrome on Android zooms the page in when a focused field's text is under
+ * 16px, and does not zoom back out — the user is left scrolled sideways
+ * mid-form. Fields across the app carry Tailwind's `text-sm` (14px), whose
+ * class selector outranks a bare element rule, so this needs `!important`
+ * to win. Scoped to coarse pointers so desktop keeps the smaller type.
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Horizontal strips (option-chain rows, quote rails) should settle on a
+   card rather than mid-item after a flick. */
+.snap-rail {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.snap-rail > * {
+  scroll-snap-align: start;
+}
+
+/* Removes the blue flash Android draws over tapped elements; the components
+   supply their own `active:` state instead. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
