@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Capacitor scaffolding and Gradle output — not ours to style.
+    "android/**",
   ]),
   {
     rules: {

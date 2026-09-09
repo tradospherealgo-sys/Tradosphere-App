@@ -185,6 +185,38 @@ makes deterministic fills possible is double-gated — an admin must select
 `null` for any symbol it was not given, and serves no candles at all. With
 either gate missing the app falls back to "no provider configured".
 
+## Android
+
+```bash
+brew install openjdk@21
+brew install --cask android-commandlinetools
+TRADOSPHERE_APP_URL=https://your-host ./scripts/android-build.sh
+# -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+The Android app is a Capacitor shell around the deployed site, not a second
+implementation. This app is server-rendered — server actions, middleware
+auth, per-request RLS — and none of that survives a static export, so
+bundling the UI into the APK would mean rebuilding the backend contract on
+the client and shipping keys to do it. Pointing a native WebView at the
+deployed host keeps exactly one codebase and one security boundary.
+
+The consequence worth stating plainly: the APK contains no Supabase keys, no
+provider credentials and no market data. `unzip -p app-debug.apk | strings`
+finds nothing to steal. The only screen it owns is an offline notice, which
+deliberately shows no cached prices — a stale quote during an outage is worse
+than no quote.
+
+`TRADOSPHERE_APP_URL` is required, must be HTTPS, and is not defaulted: an
+APK built against a placeholder installs and launches happily and only fails
+once it is on someone else's phone.
+
+`assembleDebug` signs with the shared Android debug key, which is fine for
+testing and unacceptable for distribution. A release build additionally needs
+an upload keystore — generated once, kept out of this repository, and
+referenced from `android/app/build.gradle` via a signing config whose
+password comes from the environment or `~/.gradle/gradle.properties`.
+
 ## Layout
 
 ```
@@ -200,5 +232,7 @@ src/lib/security    policy regression tests over the migrations
 supabase/migrations schema, RLS, SECURITY DEFINER functions
 supabase/tests      SQL assertions over the engine and the ledger guards
 e2e                 public (no auth) and authenticated Playwright suites
-scripts             admin bootstrap, database and end-to-end verification
+scripts             admin bootstrap, database/e2e verification, android build
+android             Capacitor shell — a WebView onto the deployed host
+android-shell       the shell's only owned screen: an offline notice
 ```

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tradosphere</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background: #0b0d10;
+        color: #e6e8eb;
+        font: 15px/1.6 system-ui, -apple-system, sans-serif;
+        text-align: center;
+      }
+      h1 { font-size: 1.125rem; margin: 0 0 0.5rem; }
+      p { margin: 0; color: #9aa3ad; max-width: 32ch; }
+    </style>
+  </head>
+  <body>
+    <!--
+      The only screen this shell owns. Everything else is served by the
+      deployed Tradosphere host; this shows when the device cannot reach it.
+      It deliberately reports nothing about market or account state — a
+      cached price shown during an outage is worse than no price.
+    -->
+    <main>
+      <h1>Tradosphere is unreachable</h1>
+      <p>Check your connection and reopen the app.</p>
+    </main>
+  </body>
+</html>
