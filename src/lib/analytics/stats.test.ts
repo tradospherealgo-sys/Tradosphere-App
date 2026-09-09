@@ -15,6 +15,11 @@ function trade(realized: number, extra: Partial<Trade> = {}): Trade {
     entry_price: 100,
     exit_price: 100 + realized,
     realized_pnl: realized,
+    product: "MIS",
+    entry_charges: 0,
+    exit_charges: 0,
+    total_charges: 0,
+    net_realized_pnl: realized,
     stop_loss: null,
     target_price: null,
     r_multiple: null,
@@ -100,5 +105,25 @@ describe("buildEquityCurve / calcDrawdown", () => {
     const dd = calcDrawdown(buildEquityCurve([trade(10), trade(20)], 500));
     expect(dd.maxDrawdown).toBe(0);
     expect(dd.maxDrawdownPct).toBe(0);
+  });
+
+  it("tracks P&L after charges, so the curve matches the cash balance", () => {
+    // Grossed +100 but cost 30 in charges: the account only gained 70.
+    const curve = buildEquityCurve(
+      [trade(100, { total_charges: 30, net_realized_pnl: 70 })],
+      1000
+    );
+    expect(curve.at(-1)!.equity).toBe(1070);
+  });
+});
+
+describe("charges and the win/loss verdict", () => {
+  it("counts a trade whose charges exceed its gross gain as a loss", () => {
+    const stats = calcTradeStats([
+      trade(40, { total_charges: 60, net_realized_pnl: -20 }),
+    ]);
+    expect(stats.wins).toBe(0);
+    expect(stats.losses).toBe(1);
+    expect(stats.netPnl).toBe(-20);
   });
 });

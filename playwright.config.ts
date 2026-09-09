@@ -16,7 +16,13 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
+  // Every authenticated spec signs in as the same seeded user, and Supabase's
+  // signOut() revokes that user's sessions globally — so a sign-out test
+  // running beside the lifecycle test logs it out mid-order. Seeded runs
+  // therefore take one worker; unseeded runs are stateless and fan out.
+  workers: process.env.E2E_SEED === "1" ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
   use: {
@@ -25,7 +31,14 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["iPhone 13"] } },
+    {
+      name: "mobile",
+      use: { ...devices["iPhone 13"] },
+      // The lifecycle spec asserts on exact balances in a single shared
+      // paper account. Running it concurrently in a second project would
+      // have the two runs spending each other's cash.
+      testIgnore: /order-lifecycle\.spec\.ts/,
+    },
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined

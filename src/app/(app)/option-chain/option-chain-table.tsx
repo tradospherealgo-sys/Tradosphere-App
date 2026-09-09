@@ -4,22 +4,28 @@ import { useState } from "react";
 import type { Greeks } from "@/lib/options/calc";
 import type { OptionLeg } from "@/lib/options/types";
 
-type Row = { leg: OptionLeg; estimated: Greeks | null };
+export type Row = { leg: OptionLeg; estimated: Greeks | null };
 
 /**
  * The classic CE-left / strike-centre / PE-right chain layout.
  *
- * On a phone the full grid is far too wide to read, so the "Compact" mode
- * (default under `sm`) drops to LTP + OI per side. The toggle is explicit
- * rather than a pure CSS breakpoint because traders on a large phone often
- * want the full grid and will scroll horizontally for it.
+ * On a phone the full grid is far too wide to read, so the compact mode
+ * (default) drops to OI + LTP per side. The toggle is explicit rather than a
+ * pure CSS breakpoint because traders on a large phone often want the full
+ * grid and will scroll horizontally for it.
+ *
+ * OI is drawn as a bar behind the number, scaled against the largest single
+ * leg in the chain. Reading where OI is concentrated is the main thing this
+ * table is for, and a column of six-figure numbers does not communicate it.
  */
 export function OptionChainTable({
   rows,
   atmStrike,
+  maxLegOi,
 }: {
   rows: Row[];
   atmStrike: number | null;
+  maxLegOi: number | null;
 }) {
   const [compact, setCompact] = useState(true);
 
@@ -31,12 +37,14 @@ export function OptionChainTable({
     byStrike.set(row.leg.strike, entry);
   }
 
+  const columns = compact ? 2 : 8;
+
   return (
     <div>
       <div className="mb-2 flex justify-end">
         <button
           type="button"
-          onClick={() => setCompact((v) => !v)}
+          onClick={() => setCompact((value) => !value)}
           className="h-9 rounded-full border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
         >
           {compact ? "Show all columns" : "Compact view"}
@@ -47,17 +55,11 @@ export function OptionChainTable({
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-border text-xs text-text-faint">
-              <th
-                colSpan={compact ? 2 : 6}
-                className="px-3 py-2 text-center font-normal text-up"
-              >
+              <th colSpan={columns} className="px-3 py-2 text-center font-normal text-up">
                 CALLS
               </th>
               <th className="px-3 py-2 text-center font-normal">Strike</th>
-              <th
-                colSpan={compact ? 2 : 6}
-                className="px-3 py-2 text-center font-normal text-down"
-              >
+              <th colSpan={columns} className="px-3 py-2 text-center font-normal text-down">
                 PUTS
               </th>
             </tr>
@@ -72,11 +74,8 @@ export function OptionChainTable({
               const entry = byStrike.get(strike) ?? {};
               const isAtm = strike === atmStrike;
               return (
-                <tr
-                  key={strike}
-                  className={`border-t border-border ${isAtm ? "bg-accent/10" : ""}`}
-                >
-                  {sideCells(entry.CE, compact, "CE", atmStrike, strike)}
+                <tr key={strike} className={`border-t border-border ${isAtm ? "bg-accent/10" : ""}`}>
+                  {sideCells(entry.CE, compact, "CE", atmStrike, strike, maxLegOi)}
                   <td
                     className={`px-3 py-2 text-center font-medium ${
                       isAtm ? "text-accent-strong" : "text-text"
@@ -84,7 +83,7 @@ export function OptionChainTable({
                   >
                     {strike.toLocaleString("en-IN")}
                   </td>
-                  {sideCells(entry.PE, compact, "PE", atmStrike, strike)}
+                  {sideCells(entry.PE, compact, "PE", atmStrike, strike, maxLegOi)}
                 </tr>
               );
             })}
@@ -95,50 +94,81 @@ export function OptionChainTable({
   );
 }
 
+const FULL_LABELS = ["OI", "ΔOI", "Vol", "IV", "Δ", "Bid", "Ask", "LTP"];
+
 function sideHeaders(compact: boolean, side: "CE" | "PE") {
-  const labels = compact
-    ? ["OI", "LTP"]
-    : ["OI", "ΔOI", "Vol", "IV", "Δ", "LTP"];
+  const labels = compact ? ["OI", "LTP"] : FULL_LABELS;
   const ordered = side === "CE" ? labels : [...labels].reverse();
-  return ordered.map((l) => (
-    <th key={`${side}-${l}`} className="px-3 py-2 text-right font-normal">
-      {l}
+  return ordered.map((label) => (
+    <th key={`${side}-${label}`} className="px-3 py-2 text-right font-normal">
+      {label}
     </th>
   ));
 }
+
+type Cell = { text: string; oiFraction?: number; tone?: "up" | "down" };
 
 function sideCells(
   row: Row | undefined,
   compact: boolean,
   side: "CE" | "PE",
   atmStrike: number | null,
-  strike: number
+  strike: number,
+  maxLegOi: number | null
 ) {
   const leg = row?.leg;
   const est = row?.estimated;
 
   // In-the-money legs get a tinted background, the standard chain convention.
-  const itm =
-    atmStrike !== null &&
-    (side === "CE" ? strike < atmStrike : strike > atmStrike);
-  const cls = `px-3 py-2 text-right ${itm ? "bg-surface-raised" : ""}`;
+  const itm = atmStrike !== null && (side === "CE" ? strike < atmStrike : strike > atmStrike);
+
+  const oiCell: Cell = {
+    text: num(leg?.oi),
+    oiFraction:
+      leg?.oi != null && maxLegOi != null && maxLegOi > 0
+        ? Math.min(1, leg.oi / maxLegOi)
+        : undefined,
+  };
 
   const delta =
-    leg?.delta !== null && leg?.delta !== undefined
-      ? String(leg.delta)
-      : est
-        ? `${est.delta} est.`
-        : "—";
+    leg?.delta != null ? String(leg.delta) : est ? `${est.delta} est.` : "—";
 
-  const cells = compact
-    ? [num(leg?.oi), num(leg?.ltp)]
-    : [num(leg?.oi), num(leg?.changeOi), num(leg?.volume), num(leg?.iv), delta, num(leg?.ltp)];
+  const cells: Cell[] = compact
+    ? [oiCell, { text: num(leg?.ltp) }]
+    : [
+        oiCell,
+        {
+          text: num(leg?.changeOi),
+          tone: leg?.changeOi == null ? undefined : leg.changeOi >= 0 ? "up" : "down",
+        },
+        { text: num(leg?.volume) },
+        { text: num(leg?.iv) },
+        { text: delta },
+        { text: num(leg?.bid) },
+        { text: num(leg?.ask) },
+        { text: num(leg?.ltp) },
+      ];
 
   const ordered = side === "CE" ? cells : [...cells].reverse();
-  return ordered.map((value, i) => (
-    <td key={`${side}-${i}`} className={cls}>
-      <span className={i === ordered.length - 1 || compact ? "text-text" : "text-text-muted"}>
-        {value}
+
+  return ordered.map((cell, index) => (
+    <td
+      key={`${side}-${index}`}
+      className={`relative px-3 py-2 text-right ${itm ? "bg-surface-raised" : ""}`}
+    >
+      {cell.oiFraction !== undefined ? (
+        <span
+          aria-hidden
+          className={`absolute inset-y-0 ${side === "CE" ? "right-0" : "left-0"} bg-accent/15`}
+          style={{ width: `${cell.oiFraction * 100}%` }}
+        />
+      ) : null}
+      <span
+        className={`relative ${
+          cell.tone === "up" ? "text-up" : cell.tone === "down" ? "text-down" : "text-text"
+        }`}
+      >
+        {cell.text}
       </span>
     </td>
   ));

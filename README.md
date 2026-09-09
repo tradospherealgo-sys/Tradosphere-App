@@ -63,7 +63,17 @@ run through `supabase db push`, the SQL editor, or `psql`:
 0012_checkout.sql           checkout intents, record_payment_success()
 0013_entitlement_gating.sql moves the paywall onto the rows
 0014_expiry_warnings.sql    idempotent pre-expiry warning sweep
+0015_order_status_pending.sql  adds the PENDING order status
+0016_order_lifecycle.sql    LIMIT/SL/SL-M engine, charges, cash reservation
+0017_allow_account_erasure.sql  lets deleting a user cascade through the ledger
 ```
+
+`0015` is one statement on purpose. Postgres refuses to *use* a new enum value
+in the transaction that added it (SQLSTATE 55P04), and Supabase applies each
+migration file as a single transaction — so the `ALTER TYPE` has to commit
+before `0016` indexes on `status = 'PENDING'`. Do not merge them back
+together: the combined file applies cleanly under a per-statement runner and
+then fails on a real deployment.
 
 `0004` is the one to understand before changing anything financial: clients
 hold the public anon key, so `orders`, `positions`, `trades`, `payments` and
@@ -146,6 +156,35 @@ The authenticated Playwright tier self-skips unless `E2E_TEST_EMAIL` and
 The public tier runs anywhere, including against an instance with no Supabase
 configuration at all.
 
+Two harnesses exercise the money path against a real backend rather than a
+mock. Both need Docker and `npx supabase start`:
+
+```bash
+./scripts/verify-db.sh    # applies every migration, then supabase/tests/*.sql
+./scripts/e2e-local.sh    # production build + seeded Playwright, incl. the
+                          # full order lifecycle
+```
+
+`verify-db.sh` applies each migration with `--single-transaction` because that
+is how Supabase applies them; running them statement-by-statement hides a real
+class of deployment failure. `e2e-local.sh` seeds a disposable user, arms the
+deterministic test-fixture price source (see below), builds, and runs the
+suite against `next start` on port 3100 — not 3000, so a dev server left
+running cannot answer the readiness probe and silently replace the build under
+test.
+
+The lifecycle spec asserts on numbers the engine produced, not on headings
+being visible: cash debited by notional plus charges, a resting order's
+reservation released to the rupee on cancel, and a round trip at one price
+booking a loss equal to the statutory charges rather than a break-even.
+
+Nothing in the suite fabricates a market price. The fixture provider that
+makes deterministic fills possible is double-gated — an admin must select
+`test_fixture` in `integration_configs` *and* the server must be started with
+`MARKET_DATA_TEST_FIXTURE` — and it is absent from the admin UI, returns
+`null` for any symbol it was not given, and serves no candles at all. With
+either gate missing the app falls back to "no provider configured".
+
 ## Layout
 
 ```
@@ -153,11 +192,13 @@ src/app/(app)       client surfaces: dashboard, charts, option chain, signals,
                     portfolio, paper trading, activity, education, subscription
 src/app/admin       admin control centre: clients, integrations, signals,
                     subscriptions, education, notifications, health, audit logs
-src/app/api         Telegram webhook, cron
+src/app/api         market quote/candles/option-chain/stream, Telegram, cron
 src/lib/market-data provider abstraction + implementations
 src/lib/trading     paper engine: orders, fills, positions, P&L, risk maths
 src/lib/signals     ingestion, parsing, admin publication, reads
 src/lib/security    policy regression tests over the migrations
 supabase/migrations schema, RLS, SECURITY DEFINER functions
+supabase/tests      SQL assertions over the engine and the ledger guards
 e2e                 public (no auth) and authenticated Playwright suites
+scripts             admin bootstrap, database and end-to-end verification
 ```

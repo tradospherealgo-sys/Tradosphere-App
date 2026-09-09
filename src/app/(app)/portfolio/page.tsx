@@ -14,7 +14,9 @@ export default async function PortfolioPage() {
     : [];
   const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]));
 
-  const realizedTotal = trades.reduce((sum, t) => sum + t.realized_pnl, 0);
+  // After charges — the figure that matches what the cash balance actually did.
+  const realizedTotal = trades.reduce((sum, t) => sum + t.net_realized_pnl, 0);
+  const chargesTotal = trades.reduce((sum, t) => sum + t.total_charges, 0);
 
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
@@ -95,9 +97,13 @@ export default async function PortfolioPage() {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-medium text-text">Trade history</h2>
           <p className="text-sm text-text-muted">
-            Total realized P&L:{" "}
+            Realized P&L after charges:{" "}
             <span className={realizedTotal >= 0 ? "text-up" : "text-down"}>
               {realizedTotal.toFixed(2)}
+            </span>
+            <span className="text-text-faint">
+              {" "}
+              (charges {chargesTotal.toFixed(2)})
             </span>
           </p>
         </div>
@@ -113,7 +119,9 @@ export default async function PortfolioPage() {
                   <th className="px-4 py-2 font-normal">Qty</th>
                   <th className="px-4 py-2 font-normal">Entry</th>
                   <th className="px-4 py-2 font-normal">Exit</th>
-                  <th className="px-4 py-2 font-normal">Realized P&L</th>
+                  <th className="px-4 py-2 font-normal">Gross P&L</th>
+                  <th className="px-4 py-2 font-normal">Charges</th>
+                  <th className="px-4 py-2 font-normal">Net P&L</th>
                   <th className="px-4 py-2 font-normal">R</th>
                   <th className="px-4 py-2 font-normal">Closed</th>
                 </tr>
@@ -130,6 +138,16 @@ export default async function PortfolioPage() {
                     <td className="px-4 py-2 text-text-muted">{t.exit_price}</td>
                     <td className={`px-4 py-2 ${t.realized_pnl >= 0 ? "text-up" : "text-down"}`}>
                       {t.realized_pnl}
+                    </td>
+                    <td className="px-4 py-2 text-text-faint">
+                      {t.total_charges.toFixed(2)}
+                    </td>
+                    <td
+                      className={`px-4 py-2 font-medium ${
+                        t.net_realized_pnl >= 0 ? "text-up" : "text-down"
+                      }`}
+                    >
+                      {t.net_realized_pnl}
                     </td>
                     <td className="px-4 py-2 text-text-faint">
                       {t.r_multiple === null ? "—" : `${t.r_multiple}R`}

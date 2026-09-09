@@ -101,7 +101,10 @@ export function MobileNav({
         >
           <Menu className="size-5" aria-hidden />
         </button>
-        <Link href={homeHref} className="truncate text-base font-semibold text-text">
+        <Link
+          href={homeHref}
+          className="flex min-h-11 items-center truncate text-base font-semibold text-text"
+        >
           {title}
         </Link>
         {notificationsHref ? (

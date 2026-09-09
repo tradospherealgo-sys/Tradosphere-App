@@ -68,7 +68,10 @@ export function calcTradeStats(trades: Trade[]): TradeStats {
   let worst = Infinity;
 
   for (const t of trades) {
-    const pnl = t.realized_pnl;
+    // After costs, not before. A trade that grossed +40 and cost 60 in
+    // charges left the account smaller, and a win rate that calls it a win
+    // is the single easiest way for this page to flatter a losing strategy.
+    const pnl = t.net_realized_pnl;
     if (pnl > 0) {
       wins++;
       grossProfit += pnl;
@@ -114,9 +117,10 @@ export function calcTradeStats(trades: Trade[]): TradeStats {
 }
 
 /**
- * Realized equity curve: starting capital plus cumulative realized P&L, one
- * point per closed trade. It deliberately excludes open-position marks, so
- * the curve only ever moves on a real, booked result.
+ * Realized equity curve: starting capital plus cumulative after-costs P&L,
+ * one point per closed trade. It deliberately excludes open-position marks,
+ * so the curve only ever moves on a real, booked result — and it tracks
+ * charges, so it stays consistent with the account's cash balance.
  */
 export function buildEquityCurve(trades: Trade[], startingCapital: number): EquityPoint[] {
   const ordered = [...trades].sort(
@@ -125,8 +129,8 @@ export function buildEquityCurve(trades: Trade[], startingCapital: number): Equi
   let equity = startingCapital;
   const points: EquityPoint[] = [{ at: ordered[0]?.opened_at ?? new Date().toISOString(), equity, pnl: 0 }];
   for (const t of ordered) {
-    equity = round2(equity + t.realized_pnl);
-    points.push({ at: t.closed_at, equity, pnl: round2(t.realized_pnl) });
+    equity = round2(equity + t.net_realized_pnl);
+    points.push({ at: t.closed_at, equity, pnl: round2(t.net_realized_pnl) });
   }
   return points;
 }

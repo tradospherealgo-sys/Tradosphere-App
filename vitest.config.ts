@@ -5,6 +5,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // `server-only` throws on import outside a React Server Component, which
+      // is what a unit test is. Next.js still enforces the real boundary at
+      // build time; this alias only makes the module importable here.
+      "server-only": path.resolve(__dirname, "./src/test/server-only-stub.ts"),
     },
   },
   test: {

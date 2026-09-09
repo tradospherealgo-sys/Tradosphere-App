@@ -13,6 +13,8 @@ function position(over: Partial<Position> = {}): Position {
     side: "BUY",
     quantity: 10,
     avg_price: 100,
+    product: "MIS",
+    entry_charges: 0,
     stop_loss: null,
     target_price: null,
     opened_at: "2026-01-01T00:00:00Z",

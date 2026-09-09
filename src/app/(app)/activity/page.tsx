@@ -54,8 +54,8 @@ export default async function ActivityPage() {
       id: `trade-${t.id}`,
       when: t.closed_at,
       kind: "Trade closed",
-      bad: t.realized_pnl < 0,
-      detail: `${t.symbol} ${t.side} ${t.quantity} — realized ${fmt(t.realized_pnl)}`,
+      bad: t.net_realized_pnl < 0,
+      detail: `${t.symbol} ${t.side} ${t.quantity} — net ${fmt(t.net_realized_pnl)} after ${fmt(t.total_charges)} charges`,
     })),
   ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime());
 
@@ -195,7 +195,7 @@ export default async function ActivityPage() {
                   <Th>Qty</Th>
                   <Th>Entry</Th>
                   <Th>Exit</Th>
-                  <Th>Realized</Th>
+                  <Th>Net P&L</Th>
                   <Th>R</Th>
                   <Th>Closed</Th>
                 </tr>
@@ -210,8 +210,8 @@ export default async function ActivityPage() {
                     <Td>{t.quantity}</Td>
                     <Td>{t.entry_price}</Td>
                     <Td>{t.exit_price}</Td>
-                    <Td className={t.realized_pnl >= 0 ? "text-up" : "text-down"}>
-                      {fmt(t.realized_pnl)}
+                    <Td className={t.net_realized_pnl >= 0 ? "text-up" : "text-down"}>
+                      {fmt(t.net_realized_pnl)}
                     </Td>
                     <Td className="text-text-faint">
                       {t.r_multiple === null ? "—" : `${t.r_multiple}R`}

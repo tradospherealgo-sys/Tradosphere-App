@@ -37,7 +37,9 @@ test.describe("mobile navigation", () => {
 
   test("drawer opens, navigates, and closes itself", async ({ page }) => {
     await page.getByRole("button", { name: "Open navigation" }).first().click();
-    const link = page.getByRole("link", { name: "Paper Trading" });
+    // Scoped to the drawer's own nav: the dashboard also links to paper
+    // trading from a card, so an unscoped lookup matches two elements.
+    const link = page.locator("nav").getByRole("link", { name: "Paper Trading", exact: true });
     await expect(link).toBeVisible();
 
     await link.click();
@@ -49,6 +51,11 @@ test.describe("mobile navigation", () => {
   test("sign out is reachable from the drawer", async ({ page }) => {
     await page.getByRole("button", { name: "Open navigation" }).first().click();
     await page.getByRole("button", { name: /sign out/i }).click();
+    // Sign-out is a server action that redirects. Navigating before it lands
+    // races it, and the still-valid cookie then makes /dashboard look like a
+    // sign-out failure.
+    await expect(page).toHaveURL(/\/login/);
+
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login/);
   });

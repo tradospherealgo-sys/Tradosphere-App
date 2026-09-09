@@ -34,13 +34,13 @@ export function SettingsForm({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text"
+            className="mt-1 min-h-11 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
+          className="min-h-11 rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
         >
           Save name
         </button>
@@ -67,13 +67,13 @@ export function SettingsForm({
             max={100}
             value={riskPct}
             onChange={(e) => setRiskPct(Number(e.target.value))}
-            className="mt-1 w-32 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text"
+            className="mt-1 min-h-11 w-32 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
+          className="min-h-11 rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
         >
           Save risk setting
         </button>

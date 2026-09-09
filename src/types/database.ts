@@ -9,7 +9,18 @@
 
 export type AppRole = "user" | "admin";
 export type OrderSide = "BUY" | "SELL";
-export type OrderStatus = "FILLED" | "REJECTED" | "CANCELLED";
+export type OrderStatus = "PENDING" | "FILLED" | "REJECTED" | "CANCELLED";
+/** SL = stop-loss limit, SL_M = stop-loss market. */
+export type OrderVariety = "MARKET" | "LIMIT" | "SL" | "SL_M";
+/** CNC = delivery (no intraday STT relief), MIS = intraday. */
+export type OrderProduct = "CNC" | "MIS";
+export type OrderEventKind =
+  | "PLACED"
+  | "MODIFIED"
+  | "TRIGGERED"
+  | "FILLED"
+  | "CANCELLED"
+  | "REJECTED";
 export type InstrumentKind = "EQUITY" | "INDEX_OPTION" | "STOCK_OPTION";
 export type NotificationKind =
   | "system"
@@ -95,6 +106,8 @@ export type PaperAccount = {
   user_id: string;
   starting_capital: number;
   cash_balance: number;
+  /** Buying power held by resting BUY orders. Free cash = cash − reserved. */
+  reserved_cash: number;
   risk_per_trade_pct: number;
   currency: string;
   created_at: string;
@@ -109,7 +122,22 @@ export type Order = {
   instrument_kind: InstrumentKind;
   side: OrderSide;
   quantity: number;
-  price: number;
+  /** Null until the order fills — a resting order has no traded price. */
+  price: number | null;
+  variety: OrderVariety;
+  product: OrderProduct;
+  limit_price: number | null;
+  trigger_price: number | null;
+  filled_quantity: number;
+  avg_fill_price: number | null;
+  reserved_cash: number;
+  brokerage: number;
+  stt: number;
+  exchange_charges: number;
+  sebi_charges: number;
+  stamp_duty: number;
+  gst: number;
+  total_charges: number;
   status: OrderStatus;
   reject_reason: string | null;
   quote_source: string | null;
@@ -118,6 +146,19 @@ export type Order = {
   target_price: number | null;
   notes: string | null;
   signal_id: string | null;
+  filled_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Append-only lifecycle log. Written only by the order RPCs. */
+export type OrderEvent = {
+  id: string;
+  order_id: string;
+  user_id: string;
+  event: OrderEventKind;
+  detail: Record<string, unknown>;
   created_at: string;
 }
 
@@ -130,6 +171,9 @@ export type Position = {
   side: OrderSide;
   quantity: number;
   avg_price: number;
+  product: OrderProduct;
+  /** Charges paid to open the remaining quantity; apportioned on partial exits. */
+  entry_charges: number;
   stop_loss: number | null;
   target_price: number | null;
   opened_at: string;
@@ -145,7 +189,13 @@ export type Trade = {
   quantity: number;
   entry_price: number;
   exit_price: number;
+  /** Gross of charges. `net_realized_pnl` is what the account actually kept. */
   realized_pnl: number;
+  product: OrderProduct;
+  entry_charges: number;
+  exit_charges: number;
+  total_charges: number;
+  net_realized_pnl: number;
   stop_loss: number | null;
   target_price: number | null;
   r_multiple: number | null;
@@ -420,8 +470,9 @@ export type Database = {
       paper_accounts: Table<PaperAccount, "user_id">;
       orders: Table<
         Order,
-        "account_id" | "user_id" | "symbol" | "side" | "quantity" | "price"
+        "account_id" | "user_id" | "symbol" | "side" | "quantity"
       >;
+      order_events: Table<OrderEvent, "order_id" | "user_id" | "event">;
       positions: Table<
         Position,
         "account_id" | "user_id" | "symbol" | "side" | "quantity" | "avg_price"
@@ -614,7 +665,13 @@ export type Database = {
           p_symbol: string;
           p_side: string;
           p_quantity: number;
-          p_price: number;
+          p_variety?: OrderVariety;
+          p_product?: OrderProduct;
+          /** The live quote. Required for MARKET; also used to test whether a
+           *  resting order's condition is already satisfied on arrival. */
+          p_price?: number | null;
+          p_limit_price?: number | null;
+          p_trigger_price?: number | null;
           p_instrument_kind?: string;
           p_quote_source?: string | null;
           p_quote_as_of?: string | null;
@@ -622,6 +679,25 @@ export type Database = {
           p_target_price?: number | null;
           p_signal_id?: string | null;
           p_notes?: string | null;
+        };
+        Returns: Order;
+      };
+      cancel_paper_order: { Args: { p_order_id: string }; Returns: Order };
+      modify_paper_order: {
+        Args: {
+          p_order_id: string;
+          p_quantity?: number | null;
+          p_limit_price?: number | null;
+          p_trigger_price?: number | null;
+        };
+        Returns: Order;
+      };
+      execute_pending_order: {
+        Args: {
+          p_order_id: string;
+          p_price: number;
+          p_quote_source?: string | null;
+          p_quote_as_of?: string | null;
         };
         Returns: Order;
       };

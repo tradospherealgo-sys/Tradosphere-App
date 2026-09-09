@@ -38,17 +38,18 @@ test.describe("authenticated paper-trading flow", () => {
 
   test("portfolio page loads the signed-in user's own paper account", async ({ page }) => {
     await page.goto("/portfolio");
-    await expect(page.getByText(/portfolio/i).first()).toBeVisible();
+    // The page heading, not merely some text matching /portfolio/: the first
+    // such match is the desktop sidebar link, hidden at phone widths.
+    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
   });
 
   test("non-admin cannot reach /admin and is redirected to /dashboard", async ({ page }) => {
     await page.goto("/admin");
-    // Either redirected away, or (if this test account happens to be an
-    // admin) the admin shell renders — assert one or the other explicitly
-    // rather than silently passing either way.
-    await page.waitForLoadState("networkidle");
-    const url = page.url();
-    expect(url.includes("/admin") || url.includes("/dashboard")).toBe(true);
+    // The seeded E2E user is a plain client, so the only acceptable outcome
+    // is being bounced to /dashboard. The previous form of this assertion
+    // accepted /admin as well, which meant it passed whether or not the
+    // authorization check ran at all.
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 
   test("sign out returns to a signed-out state", async ({ page }) => {
@@ -58,6 +59,10 @@ test.describe("authenticated paper-trading flow", () => {
     if (await drawerToggle.isVisible()) await drawerToggle.click();
 
     await page.getByRole("button", { name: /sign out/i }).click();
+    // Sign-out is a server action that redirects. Navigating before it lands
+    // races it, and the still-valid cookie then looks like a sign-out bug.
+    await expect(page).toHaveURL(/\/login/);
+
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login/);
   });

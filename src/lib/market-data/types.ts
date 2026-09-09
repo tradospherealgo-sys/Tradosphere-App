@@ -43,6 +43,17 @@ export type ProviderTestResult = {
   testedAt: string;
 };
 
+/**
+ * Freshness contract a caller can impose on a quote. Concrete providers
+ * ignore it (they always go upstream); the caching decorator enforces it.
+ * Supplying `maxStaleMs` is a correctness statement — "a price older than
+ * this is unusable for what I'm about to do". The order-fill path sets a
+ * tight bound; a watchlist tile sets none.
+ */
+export type QuoteOptions = {
+  maxStaleMs?: number;
+};
+
 export interface MarketDataProvider {
   /** Machine name — must match the `provider` column in integration_configs. */
   readonly name: string;
@@ -51,9 +62,9 @@ export interface MarketDataProvider {
   /** False for the built-in "none" provider, or if required secrets/config are missing. */
   isConfigured(): boolean;
   /** Single real-time (or best-effort delayed) quote, or null if unavailable. */
-  getQuote(symbol: string): Promise<Quote | null>;
+  getQuote(symbol: string, options?: QuoteOptions): Promise<Quote | null>;
   /** Batch quotes. Implementations should skip symbols they can't resolve, not fabricate them. */
-  getQuotes(symbols: string[]): Promise<Quote[]>;
+  getQuotes(symbols: string[], options?: QuoteOptions): Promise<Quote[]>;
   /** Historical OHLC candles for charting. Empty array if unavailable. */
   getHistoricalCandles(
     symbol: string,

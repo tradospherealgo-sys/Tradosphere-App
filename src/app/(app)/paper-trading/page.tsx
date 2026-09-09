@@ -2,6 +2,7 @@ import { getMyOrders, getMyPaperAccount } from "@/lib/trading/actions";
 import { getTradableInstruments } from "@/lib/app-data/reads";
 import { EmptyState } from "@/components/empty-state";
 import { OrderForm } from "./order-form";
+import { OrderBook } from "./order-book";
 import { ResetAccountButton } from "./reset-account-button";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,13 @@ export default async function PaperTradingPage({
       }
     : undefined;
 
+  const resting = orders.filter((order) => order.status === "PENDING");
+  const history = orders.filter((order) => order.status !== "PENDING");
+  // Cash a resting BUY has already committed is not available to spend again.
+  const availableCash = account
+    ? account.cash_balance - account.reserved_cash
+    : 0;
+
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
       <header>
@@ -55,9 +63,17 @@ export default async function PaperTradingPage({
             <span className="text-text-muted">
               Cash available:{" "}
               <span className="text-text">
-                {account.currency} {account.cash_balance.toLocaleString("en-IN")}
+                {account.currency} {availableCash.toLocaleString("en-IN")}
               </span>
             </span>
+            {account.reserved_cash > 0 && (
+              <span className="text-text-muted">
+                Blocked by open orders:{" "}
+                <span className="text-text">
+                  {account.currency} {account.reserved_cash.toLocaleString("en-IN")}
+                </span>
+              </span>
+            )}
             <span className="text-text-muted">
               Risk per trade: <span className="text-text">{account.risk_per_trade_pct}%</span>
             </span>
@@ -72,13 +88,17 @@ export default async function PaperTradingPage({
           instruments={instruments}
           equity={account?.starting_capital ?? 0}
           riskPct={account?.risk_per_trade_pct ?? 1}
+          availableCash={availableCash}
+          currency={account?.currency ?? "INR"}
           prefill={prefill}
         />
       </section>
 
+      <OrderBook orders={resting} />
+
       <section>
         <h2 className="mb-3 text-sm font-medium text-text">Order history</h2>
-        {orders.length === 0 ? (
+        {history.length === 0 ? (
           <EmptyState title="No orders yet" />
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
@@ -86,9 +106,11 @@ export default async function PaperTradingPage({
               <thead>
                 <tr className="text-left text-xs text-text-faint">
                   <th className="px-4 py-2 font-normal">Symbol</th>
+                  <th className="px-4 py-2 font-normal">Type</th>
                   <th className="px-4 py-2 font-normal">Side</th>
                   <th className="px-4 py-2 font-normal">Qty</th>
-                  <th className="px-4 py-2 font-normal">Price</th>
+                  <th className="px-4 py-2 font-normal">Fill price</th>
+                  <th className="px-4 py-2 font-normal">Charges</th>
                   <th className="px-4 py-2 font-normal">SL / Target</th>
                   <th className="px-4 py-2 font-normal">Status</th>
                   <th className="px-4 py-2 font-normal">Reason</th>
@@ -96,14 +118,20 @@ export default async function PaperTradingPage({
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
+                {history.map((o) => (
                   <tr key={o.id} className="border-t border-border">
                     <td className="px-4 py-2 text-text">{o.symbol}</td>
+                    <td className="px-4 py-2 text-text-muted">
+                      {o.variety === "SL_M" ? "SL-M" : o.variety} · {o.product}
+                    </td>
                     <td className={`px-4 py-2 ${o.side === "BUY" ? "text-up" : "text-down"}`}>
                       {o.side}
                     </td>
                     <td className="px-4 py-2 text-text-muted">{o.quantity}</td>
-                    <td className="px-4 py-2 text-text-muted">{o.price}</td>
+                    <td className="px-4 py-2 text-text-muted">{o.avg_fill_price ?? "—"}</td>
+                    <td className="px-4 py-2 text-text-faint">
+                      {o.status === "FILLED" ? o.total_charges.toFixed(2) : "—"}
+                    </td>
                     <td className="px-4 py-2 text-text-faint">
                       {o.stop_loss ?? "—"} / {o.target_price ?? "—"}
                     </td>
