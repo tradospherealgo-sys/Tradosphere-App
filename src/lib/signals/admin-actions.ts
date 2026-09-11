@@ -4,12 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/admin/audit";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 import type {
   InstrumentKind,
   OrderSide,
+  SignalCategory,
   SignalSourceKind,
   SignalStatus,
 } from "@/types/database";
+import { TRADE_CATEGORIES } from "./categories";
 
 /**
  * Signal curation.
@@ -81,6 +84,7 @@ export type SignalDraft = {
   sourceId: string;
   symbol: string;
   instrumentKind: InstrumentKind;
+  category: SignalCategory;
   direction: OrderSide;
   entryPrice: number | null;
   entryLow: number | null;
@@ -109,6 +113,9 @@ export async function createSignal(draft: SignalDraft): Promise<ActionResult> {
     const symbol = draft.symbol.trim().toUpperCase();
     if (!symbol) return { ok: false, error: "Symbol is required." };
     if (!draft.sourceId) return { ok: false, error: "A registered source is required." };
+    if (!(TRADE_CATEGORIES as SignalCategory[]).includes(draft.category)) {
+      return { ok: false, error: "Category must be a trade category (F&O, Equity, or Commodity)." };
+    }
     if (
       draft.entryLow !== null &&
       draft.entryHigh !== null &&
@@ -127,6 +134,7 @@ export async function createSignal(draft: SignalDraft): Promise<ActionResult> {
         source_id: draft.sourceId,
         symbol,
         instrument_kind: draft.instrumentKind,
+        category: draft.category,
         direction: draft.direction,
         entry_price: draft.entryPrice,
         entry_low: draft.entryLow,
@@ -143,7 +151,9 @@ export async function createSignal(draft: SignalDraft): Promise<ActionResult> {
       })
       .select("id")
       .single();
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return { ok: false, error: dbErrorMessage("createSignal", error, "Could not create the signal.") };
+    }
 
     await supabase.from("signal_events").insert({
       signal_id: data.id,
@@ -197,9 +207,36 @@ export async function upsertSignalSource(
     const { error } = id
       ? await supabase.from("signal_sources").update(row).eq("id", id)
       : await supabase.from("signal_sources").insert(row);
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return {
+        ok: false,
+        error: dbErrorMessage("upsertSignalSource", error, "Could not save the source."),
+      };
+    }
 
     await writeAuditLog(user.id, id ? "update_signal_source" : "create_signal_source", "signal_sources", id ?? slug);
+    revalidatePath("/admin/signals");
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function resolveWorkflowError(id: number): Promise<ActionResult> {
+  try {
+    const { user } = await requireAdmin();
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("workflow_errors")
+      .update({ resolved: true, resolved_at: new Date().toISOString(), resolved_by: user.id })
+      .eq("id", id);
+    if (error) {
+      return {
+        ok: false,
+        error: dbErrorMessage("resolveWorkflowError", error, "Could not resolve the error."),
+      };
+    }
+    await writeAuditLog(user.id, "resolve_workflow_error", "workflow_errors", String(id));
     revalidatePath("/admin/signals");
     return { ok: true };
   } catch (e) {
@@ -215,7 +252,12 @@ export async function setSignalSourceActive(id: string, isActive: boolean): Prom
       .from("signal_sources")
       .update({ is_active: isActive })
       .eq("id", id);
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return {
+        ok: false,
+        error: dbErrorMessage("setSignalSourceActive", error, "Could not update the source."),
+      };
+    }
     await writeAuditLog(user.id, isActive ? "enable_signal_source" : "disable_signal_source", "signal_sources", id);
     revalidatePath("/admin/signals");
     return { ok: true };

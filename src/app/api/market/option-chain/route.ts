@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/api/guard";
 import { getMarketStatus } from "@/lib/market-data";
 import { getActiveOptionChainProvider } from "@/lib/options";
 import { analyseChain } from "@/lib/options/analysis";
+import { hasEntitlement } from "@/lib/subscriptions/reads";
 
 /**
  * Option chain plus the derived analytics the UI would otherwise recompute on
@@ -18,6 +19,17 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const gate = await requireUser();
   if ("response" in gate) return gate.response;
+
+  // RLS on option_chain_snapshots would eventually block an unentitled user,
+  // but as a plain data query (not a table read) it would just come back
+  // empty rather than explaining why — check the entitlement explicitly so
+  // the response is an honest 403, matching the page-level gate.
+  if (!(await hasEntitlement("option_chain"))) {
+    return NextResponse.json(
+      { error: "Your plan does not include option chain access." },
+      { status: 403 }
+    );
+  }
 
   const params = new URL(request.url).searchParams;
   const underlying = (params.get("underlying") ?? "").trim().toUpperCase();

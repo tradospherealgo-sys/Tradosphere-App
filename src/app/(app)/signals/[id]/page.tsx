@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSignalById, getSignalEvents } from "@/lib/signals/reads";
+import { CATEGORY_LABELS, CATEGORY_STYLES, isTradeCategory } from "@/lib/signals/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function SignalDetailPage({
 
   const events = await getSignalEvents(signal.id);
   const source = signal.signal_sources;
+  const tradeCategory = isTradeCategory(signal.category);
   const long = signal.direction === "BUY";
   const entryForSizing = signal.entry_price ?? signal.entry_low;
 
@@ -52,7 +54,9 @@ export default async function SignalDetailPage({
     },
   };
 
-  const tradeable = signal.status === "active" || signal.status === "triggered";
+  const tradeable =
+    tradeCategory && signal.direction !== null &&
+    (signal.status === "active" || signal.status === "triggered");
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
@@ -64,13 +68,22 @@ export default async function SignalDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold text-text">{signal.symbol}</h1>
           <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              long ? "bg-up/15 text-up" : "bg-down/15 text-down"
-            }`}
+            className={`rounded-full border px-2 py-0.5 text-xs ${CATEGORY_STYLES[signal.category]}`}
           >
-            {long ? "LONG" : "SHORT"}
+            {CATEGORY_LABELS[signal.category]}
           </span>
-          <span className="text-xs text-text-faint">{signal.instrument_kind}</span>
+          {signal.direction !== null && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                long ? "bg-up/15 text-up" : "bg-down/15 text-down"
+              }`}
+            >
+              {long ? "LONG" : "SHORT"}
+            </span>
+          )}
+          {tradeCategory && (
+            <span className="text-xs text-text-faint">{signal.instrument_kind}</span>
+          )}
           <span className="rounded-full border border-border px-2 py-0.5 text-xs text-text-muted">
             {signal.status.replace(/_/g, " ")}
           </span>
@@ -88,34 +101,44 @@ export default async function SignalDetailPage({
         </p>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Level
-          label="Entry"
-          value={
-            signal.entry_price !== null
-              ? fmt(signal.entry_price)
-              : signal.entry_low !== null && signal.entry_high !== null
-                ? `${fmt(signal.entry_low)} – ${fmt(signal.entry_high)}`
-                : null
-          }
-        />
-        <Level label="Stop loss" value={num(signal.stop_loss)} />
-        <Level label="Target 1" value={num(signal.target_1)} />
-        <Level label="Target 2" value={num(signal.target_2)} />
-        <Level label="Target 3" value={num(signal.target_3)} />
-        <Level
-          label="Risk : Reward"
-          value={signal.risk_reward !== null ? signal.risk_reward.toFixed(2) : null}
-        />
-        <Level
-          label="Confidence"
-          value={signal.confidence !== null ? `${signal.confidence}%` : null}
-        />
-        <Level
-          label="Valid until"
-          value={signal.expires_at ? new Date(signal.expires_at).toLocaleString("en-IN") : null}
-        />
-      </section>
+      {tradeCategory ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Level
+            label="Entry"
+            value={
+              signal.entry_price !== null
+                ? fmt(signal.entry_price)
+                : signal.entry_low !== null && signal.entry_high !== null
+                  ? `${fmt(signal.entry_low)} – ${fmt(signal.entry_high)}`
+                  : null
+            }
+          />
+          <Level label="Stop loss" value={num(signal.stop_loss)} />
+          <Level label="Target 1" value={num(signal.target_1)} />
+          <Level label="Target 2" value={num(signal.target_2)} />
+          <Level label="Target 3" value={num(signal.target_3)} />
+          <Level
+            label="Risk : Reward"
+            value={signal.risk_reward !== null ? signal.risk_reward.toFixed(2) : null}
+          />
+          <Level
+            label="Confidence"
+            value={signal.confidence !== null ? `${signal.confidence}%` : null}
+          />
+          <Level
+            label="Valid until"
+            value={signal.expires_at ? new Date(signal.expires_at).toLocaleString("en-IN") : null}
+          />
+        </section>
+      ) : (
+        signal.normalized_message && (
+          <section className="rounded-2xl border border-border bg-surface p-4 md:p-6">
+            <p className="whitespace-pre-line text-sm text-text-muted">
+              {signal.normalized_message}
+            </p>
+          </section>
+        )
+      )}
 
       {(signal.rationale || signal.risk_note) && (
         <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 md:p-6">
@@ -136,24 +159,26 @@ export default async function SignalDetailPage({
         </section>
       )}
 
-      <section>
-        {tradeable ? (
-          <Link
-            href={tradeHref}
-            className="inline-flex h-11 items-center rounded-lg bg-accent px-5 text-sm font-medium text-bg hover:bg-accent-strong"
-          >
-            Trade this on paper
-          </Link>
-        ) : (
-          <p className="text-sm text-text-faint">
-            This signal is {signal.status.replace(/_/g, " ")} and can no longer be taken.
+      {tradeCategory && (
+        <section>
+          {tradeable ? (
+            <Link
+              href={tradeHref}
+              className="inline-flex h-11 items-center rounded-lg bg-accent px-5 text-sm font-medium text-bg hover:bg-accent-strong"
+            >
+              Trade this on paper
+            </Link>
+          ) : (
+            <p className="text-sm text-text-faint">
+              This signal is {signal.status.replace(/_/g, " ")} and can no longer be taken.
+            </p>
+          )}
+          <p className="mt-2 text-xs text-text-faint">
+            Tradosphere never places a real-money order. Taking a signal opens a
+            simulated position filled at the live quote at the moment you submit.
           </p>
-        )}
-        <p className="mt-2 text-xs text-text-faint">
-          Tradosphere never places a real-money order. Taking a signal opens a
-          simulated position filled at the live quote at the moment you submit.
-        </p>
-      </section>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-text">Lifecycle</h2>

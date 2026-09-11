@@ -2,23 +2,34 @@ import Link from "next/link";
 import {
   getAllSignals,
   getAllSignalSources,
+  getRecentDistributionLogs,
   getSignalReviewQueue,
   getTelegramInbox,
+  getUnresolvedWorkflowErrors,
 } from "@/lib/signals/admin-reads";
 import { EmptyState } from "@/components/empty-state";
-import { LifecycleControls, ReviewControls } from "./review-controls";
+import { LifecycleControls, ResolveWorkflowErrorControl, ReviewControls } from "./review-controls";
 import { SignalComposer } from "./signal-composer";
 import { SourceManager } from "./source-manager";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSignalsPage() {
-  const [queue, all, sources, inbox] = await Promise.all([
+  const [queue, all, sources, inbox, workflowErrors, distributionLogs] = await Promise.all([
     getSignalReviewQueue(),
     getAllSignals(60),
     getAllSignalSources(),
     getTelegramInbox(40),
+    getUnresolvedWorkflowErrors(40),
+    getRecentDistributionLogs(40),
   ]);
+
+  const DISTRIBUTION_STATUS_STYLES: Record<string, string> = {
+    sent: "text-up",
+    pending: "text-text-faint",
+    retrying: "text-warn",
+    failed: "text-down",
+  };
 
   const released = all.filter(
     (s) => s.verification_state === "verified" && s.status !== "pending"
@@ -124,6 +135,88 @@ export default async function AdminSignalsPage() {
       <section>
         <h2 className="mb-3 text-sm font-medium text-text">Signal sources</h2>
         <SourceManager sources={sources} />
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-sm font-medium text-text">
+          Pipeline errors {workflowErrors.length > 0 ? `(${workflowErrors.length})` : ""}
+        </h2>
+        <p className="mb-3 text-xs text-text-muted">
+          Failures caught by the n8n Signal OS pipeline — an AI call that
+          failed, malformed output, a rejected insert, or an unreachable
+          distribution destination. Resolving here just clears the flag; it
+          does not retry the underlying stage.
+        </p>
+        {workflowErrors.length === 0 ? (
+          <EmptyState title="No unresolved pipeline errors" />
+        ) : (
+          <div className="space-y-3">
+            {workflowErrors.map((e) => (
+              <div key={e.id} className="rounded-2xl border border-down/30 bg-surface p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-text">{e.workflow_name}</span>
+                  <span className="text-xs text-text-faint">{e.node_name}</span>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs text-text-muted">
+                    {e.stage}
+                  </span>
+                  <span className="ml-auto text-xs text-text-faint">
+                    {new Date(e.occurred_at).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-down">{e.error_message}</p>
+                <div className="mt-3">
+                  <ResolveWorkflowErrorControl errorId={e.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-sm font-medium text-text">Distribution log</h2>
+        <p className="mb-3 text-xs text-text-muted">
+          Per-destination delivery attempts for published signals, written by
+          the n8n pipeline. Read-only — a failed send is retried by the
+          workflow itself, not from here.
+        </p>
+        {distributionLogs.length === 0 ? (
+          <EmptyState title="No distribution attempts recorded yet" />
+        ) : (
+          <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint">
+                  <th className="pb-2 font-normal">Signal</th>
+                  <th className="pb-2 font-normal">Destination</th>
+                  <th className="pb-2 font-normal">Status</th>
+                  <th className="pb-2 font-normal">Attempts</th>
+                  <th className="pb-2 font-normal">Last error</th>
+                  <th className="pb-2 font-normal">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {distributionLogs.map((d) => (
+                  <tr key={d.id} className="border-t border-border">
+                    <td className="py-2 text-text">
+                      {d.signals?.symbol ?? "—"}{" "}
+                      <span className="text-xs text-text-faint">{d.signals?.category}</span>
+                    </td>
+                    <td className="py-2 text-text-muted">{d.destination}</td>
+                    <td className={`py-2 ${DISTRIBUTION_STATUS_STYLES[d.status] ?? ""}`}>
+                      {d.status}
+                    </td>
+                    <td className="py-2 tabular-nums text-text-muted">{d.attempt_count}</td>
+                    <td className="py-2 text-xs text-down">{d.last_error ?? "—"}</td>
+                    <td className="py-2 text-xs text-text-faint">
+                      {new Date(d.updated_at).toLocaleString("en-IN")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section>

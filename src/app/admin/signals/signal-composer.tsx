@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { createSignal } from "@/lib/signals/admin-actions";
-import type { InstrumentKind, OrderSide } from "@/types/database";
+import { TRADE_CATEGORIES, CATEGORY_LABELS } from "@/lib/signals/categories";
+import type { InstrumentKind, OrderSide, SignalCategory } from "@/types/database";
 
 type SourceOption = { id: string; name: string; kind: string; is_active: boolean };
 
@@ -24,6 +25,7 @@ export function SignalComposer({ sources }: { sources: SourceOption[] }) {
   const [sourceId, setSourceId] = useState(active[0]?.id ?? "");
   const [symbol, setSymbol] = useState("");
   const [instrumentKind, setInstrumentKind] = useState<InstrumentKind>("EQUITY");
+  const [category, setCategory] = useState<SignalCategory>("EQUITY");
   const [direction, setDirection] = useState<OrderSide>("BUY");
   const [f, setF] = useState<Record<string, string>>({});
   const [rationale, setRationale] = useState("");
@@ -70,6 +72,7 @@ export function SignalComposer({ sources }: { sources: SourceOption[] }) {
             sourceId,
             symbol,
             instrumentKind,
+            category,
             direction,
             entryPrice: num(f.entry ?? ""),
             entryLow: num(f.entryLow ?? ""),
@@ -131,6 +134,20 @@ export function SignalComposer({ sources }: { sources: SourceOption[] }) {
             {INSTRUMENTS.map((i) => (
               <option key={i} value={i}>
                 {i}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-text-faint">Category</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as SignalCategory)}
+            className="mt-1 h-11 w-full rounded-lg border border-border bg-bg px-3 text-base text-text"
+          >
+            {TRADE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABELS[c]}
               </option>
             ))}
           </select>

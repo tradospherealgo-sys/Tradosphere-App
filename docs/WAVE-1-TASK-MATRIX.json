@@ -1,0 +1,62 @@
+{
+  "audit_date": "2026-09-11",
+  "project": "TRADOSPHERE-FINAL",
+  "summary": {
+    "phases_total": 20,
+    "complete": 6,
+    "partial": 11,
+    "broken": 1,
+    "missing": 1,
+    "external_blocker": 1
+  },
+  "phases": [
+    { "id": 1, "name": "Full Existing-Project Audit", "status": "COMPLETE", "wave": null, "beta_critical": true, "files": ["docs/WAVE-1-AUDIT.md"], "blockers": [] },
+    { "id": 2, "name": "Signal OS Architecture", "status": "PARTIAL", "wave": 3, "beta_critical": true, "files": ["supabase/migrations/0007_signals.sql", "supabase/migrations/0011_signal_ingestion.sql", "supabase/migrations/0019_signal_os.sql", "src/lib/signals"], "blockers": ["Only ingestion+storage+dashboard-read of 10 pipeline stages are live in the app; AI extraction/classification/validation/dedup/distribution exist only in the unactivated n8n workflow"] },
+    { "id": 3, "name": "AI Signal Agent", "status": "PARTIAL", "wave": 3, "beta_critical": true, "files": ["n8n/tradosphere-signal-os-master.json"], "blockers": ["Zero LLM calls exist in the Next.js app itself; the real LangChain/Claude agent lives only in an unactivated n8n workflow"] },
+    { "id": 4, "name": "Validation + Deduplication", "status": "PARTIAL", "wave": 3, "beta_critical": true, "files": ["supabase/migrations/0019_signal_os.sql", "n8n/tradosphere-signal-os-master.json"], "blockers": ["fingerprint dedup real only in n8n; Telegram regex ingest path never computes or checks fingerprint"] },
+    { "id": 5, "name": "Supabase Core", "status": "COMPLETE", "wave": null, "beta_critical": true, "files": ["supabase/migrations/0001_schema.sql", "supabase/migrations/0002_rls.sql", "supabase/migrations/0004_financial_lockdown.sql"], "blockers": [] },
+    { "id": 6, "name": "Master n8n Workflow", "status": "PARTIAL", "wave": 3, "beta_critical": true, "files": ["n8n/tradosphere-signal-os-master.json"], "blockers": ["active:false, 5 unbound placeholder credentials, 1 disabled node (SMC Auto Trender)"] },
+    { "id": 7, "name": "Credentials + External Integrations", "status": "EXTERNAL_BLOCKER", "wave": 3, "beta_critical": true, "files": [".env.example"], "blockers": ["Upstox account", "SMC partner onboarding", "n8n hosting + credentials", "WhatsApp Business Cloud number + relay", "Telegram bot secret", "CRON_SECRET production value"] },
+    { "id": 8, "name": "Signal Test Mode", "status": "PARTIAL", "wave": 3, "beta_critical": false, "files": ["n8n/tradosphere-signal-os-master.json"], "blockers": ["Test Mode Trigger node exists but has never been run against a staging Supabase instance"] },
+    { "id": 9, "name": "Professional Client Dashboard", "status": "COMPLETE", "wave": null, "beta_critical": true, "files": ["src/app/(app)/dashboard/page.tsx"], "blockers": [] },
+    { "id": 10, "name": "Signal Center", "status": "PARTIAL", "wave": 2, "beta_critical": true, "files": ["src/app/(app)/signals", "src/app/admin/signals", "src/lib/signals/admin-actions.ts"], "blockers": ["createSignal() and ingest.ts never populate signals.category; live signals default to OTHER, breaking client-facing category filters"] },
+    { "id": 11, "name": "Paper Trading", "status": "COMPLETE", "wave": null, "beta_critical": true, "files": ["src/lib/trading", "supabase/migrations/0016_order_lifecycle.sql"], "blockers": [] },
+    { "id": 12, "name": "Live Market Data + Charts", "status": "PARTIAL", "wave": 2, "beta_critical": true, "files": ["src/lib/market-data"], "blockers": ["Upstox provider does not exist anywhere in the codebase", "SMC provider field mappings unverified against a live account"] },
+    { "id": 13, "name": "Option Chain", "status": "PARTIAL", "wave": 2, "beta_critical": true, "files": ["src/lib/options"], "blockers": ["Same provider gap as phase 12; math/analysis itself is complete and real"] },
+    { "id": 14, "name": "Education", "status": "COMPLETE", "wave": null, "beta_critical": false, "files": ["src/app/(app)/education", "supabase/migrations/0009_education.sql"], "blockers": [] },
+    { "id": 15, "name": "Admin Panel", "status": "COMPLETE", "wave": null, "beta_critical": true, "files": ["src/app/admin"], "blockers": [] },
+    { "id": 16, "name": "Security", "status": "PARTIAL", "wave": 4, "beta_critical": true, "files": ["src/app/auth/callback/route.ts"], "blockers": ["Open redirect: next query param concatenated into redirect URL without same-origin validation"] },
+    { "id": 17, "name": "Mobile / Android UX", "status": "PARTIAL", "wave": 4, "beta_critical": false, "files": ["android", "capacitor.config.ts", "scripts/android-build.sh"], "blockers": ["Debug-signed APK only; no release keystore/signing pipeline"] },
+    { "id": 18, "name": "Full E2E Verification", "status": "PARTIAL", "wave": 5, "beta_critical": true, "files": ["e2e", "supabase/tests", ".github/workflows/ci.yml"], "blockers": ["npm run test:db (pgTAP-equivalent SQL suite) not wired into CI"] },
+    { "id": 19, "name": "Production Readiness", "status": "BROKEN", "wave": 5, "beta_critical": true, "files": ["next.config.ts", "src/proxy.ts", ".github/workflows/ci.yml"], "blockers": ["npm run build fails reproducibly on Node 20.20.2 and Node 22.23.2 with a SyntaxError inside Next's bundled edge-runtime loader; CI never runs a build step so this was previously undetected"] },
+    { "id": 20, "name": "Beta Launch", "status": "MISSING", "wave": 5, "beta_critical": true, "files": [], "blockers": ["Depends on all prior phases, especially phase 19"] }
+  ],
+  "verification_run_this_session": {
+    "typecheck": { "command": "npm run typecheck", "result": "PASS", "errors": 0 },
+    "lint": { "command": "npm run lint", "result": "PASS", "errors": 0 },
+    "unit_tests": { "command": "npm run test", "result": "PASS", "test_files": 17, "tests": 205, "duration_s": 41.65 },
+    "build": { "command": "npm run build", "result": "FAIL", "exit_code": 1, "error": "unhandledRejection SyntaxError: Unexpected identifier 'Object' in node_modules/next/dist/compiled/@edge-runtime/primitives/load.js", "reproduced_on": ["node v20.20.2", "node v22.23.2"], "ruled_out": ["stale .next cache (rm -rf .next did not change result)"] }
+  },
+  "critical_path": [
+    "W5-00: fix npm run build",
+    "W2-01/W2-02: build and wire Upstox market-data provider",
+    "W3-01: fix signal category persistence",
+    "W3-03..W3-08: n8n stand-up, credentials, WhatsApp decision, go-live",
+    "W4-01: fix open-redirect in /auth/callback",
+    "W5-00b/W5-01: add build and test:db gates to CI",
+    "W5-02..W5-09: full regression, production env verification, final audit, sign-off"
+  ],
+  "external_user_actions": [
+    "Upstox developer account + API credentials",
+    "SMC partner API onboarding",
+    "Google Cloud Console OAuth consent screen + redirect URI",
+    "Supabase Dashboard: enable Google provider, set Site URL / redirect allowlist",
+    "n8n hosting + 5 credentials (Postgres, Telegram, WhatsApp Cloud x2, Anthropic)",
+    "WhatsApp Business Cloud number + source-group relay decision",
+    "CRON_SECRET and TELEGRAM_WEBHOOK_SECRET set in production hosting",
+    "Payment gateway selection + credentials (if self-serve paid signup wanted for Beta)",
+    "Android release keystore",
+    "Market-data redistribution/licensing confirmation",
+    "Production deployment/DNS ownership"
+  ]
+}

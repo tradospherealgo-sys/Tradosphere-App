@@ -149,3 +149,5 @@ function parseNseTimestamp(raw: string | undefined): string {
   const parsed = new Date(iso);
   return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
+
+export const __testing = { parseNseTimestamp };

@@ -1,6 +1,9 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseSignalMessage } from "./parser";
+import { computeSignalFingerprint } from "./fingerprint";
+import type { SignalCategory } from "@/types/database";
+import type { ParsedSignal } from "./parser";
 
 /**
  * Telegram → inbox → signal.
@@ -23,8 +26,15 @@ import { parseSignalMessage } from "./parser";
 export type IngestOutcome =
   | { status: "ignored"; reason: string }
   | { status: "duplicate" }
+  | { status: "duplicate_signal"; signalId: string }
   | { status: "unparseable"; reason: string }
   | { status: "parsed"; signalId: string; released: boolean };
+
+/** EQUITY stays EQUITY; every option shape this rule-based parser recognises
+ *  (INDEX_OPTION/STOCK_OPTION — it never detects COMMODITY) is F&O. */
+function categoryForInstrument(instrumentKind: ParsedSignal["instrumentKind"]): SignalCategory {
+  return instrumentKind === "EQUITY" ? "EQUITY" : "F&O";
+}
 
 export type InboundMessage = {
   chatId: string;
@@ -89,12 +99,36 @@ export async function ingestTelegramMessage(msg: InboundMessage): Promise<Ingest
   }
 
   const s = parsed.signal;
+  const category = categoryForInstrument(s.instrumentKind);
+  const fingerprint = computeSignalFingerprint({
+    category,
+    symbol: s.symbol,
+    action: s.direction,
+    entry: s.entryPrice ?? s.entryLow,
+    stopLoss: s.stopLoss,
+    targets: [s.target1, s.target2, s.target3],
+  });
+
+  // Same-day resend of an identical call (a desk re-broadcasting, or the same
+  // message relayed into more than one bound chat) must not create a second
+  // tradeable signal — mirrors the n8n pipeline's fingerprint check.
+  const { data: existing } = await admin
+    .from("signals")
+    .select("id")
+    .eq("fingerprint", fingerprint)
+    .maybeSingle();
+  if (existing) {
+    await finish("ignored", { parse_error: "Duplicate signal (same fingerprint).", signal_id: existing.id });
+    return { status: "duplicate_signal", signalId: existing.id };
+  }
+
   const { data: signal, error: signalError } = await admin
     .from("signals")
     .insert({
       source_id: source.id,
       symbol: s.symbol,
       instrument_kind: s.instrumentKind,
+      category,
       direction: s.direction,
       entry_price: s.entryPrice,
       entry_low: s.entryLow,
@@ -105,11 +139,26 @@ export async function ingestTelegramMessage(msg: InboundMessage): Promise<Ingest
       target_3: s.target3,
       origin_ref: `telegram:${msg.chatId}:${msg.messageId}`,
       raw_message: msg.text,
+      fingerprint,
     })
     .select("id")
     .single();
 
   if (signalError) {
+    // 23505 on the fingerprint unique index means a concurrent request won
+    // the same race the pre-check above was trying to avoid — still a
+    // duplicate, not a real failure.
+    if (signalError.code === "23505") {
+      const { data: winner } = await admin
+        .from("signals")
+        .select("id")
+        .eq("fingerprint", fingerprint)
+        .maybeSingle();
+      if (winner) {
+        await finish("ignored", { parse_error: "Duplicate signal (same fingerprint).", signal_id: winner.id });
+        return { status: "duplicate_signal", signalId: winner.id };
+      }
+    }
     await finish("unparseable", { parse_error: `Rejected by database: ${signalError.message}` });
     return { status: "unparseable", reason: signalError.message };
   }
@@ -137,3 +186,5 @@ export async function ingestTelegramMessage(msg: InboundMessage): Promise<Ingest
   await finish("parsed", { signal_id: signal.id, parse_error: null });
   return { status: "parsed", signalId: signal.id, released };
 }
+
+export const __testing = { categoryForInstrument };

@@ -40,7 +40,7 @@ export async function getMySubscription(): Promise<SubscriptionWithPlan | null> 
     .from("subscriptions")
     .select("*, plans(*)")
     .eq("user_id", user.id)
-    .in("status", ["trialing", "active", "past_due"])
+    .in("status", ["trialing", "active", "past_due", "suspended"])
     .gt("current_period_end", new Date().toISOString())
     .order("current_period_end", { ascending: false })
     .limit(1)

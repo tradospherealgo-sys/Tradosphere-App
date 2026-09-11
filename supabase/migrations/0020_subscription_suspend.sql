@@ -1,0 +1,23 @@
+-- ============================================================================
+-- SUBSCRIPTION SUSPENSION (1/2): enum value only
+--
+-- Wave 4 gap: the access-state model (FREE / BETA / PAID / EXPIRED /
+-- SUSPENDED) needs a way to pause a client's access without cancelling their
+-- subscription outright (e.g. a billing dispute or policy violation under
+-- review) — cancelling is destructive (no reinstatement path with the
+-- original period), suspension is reversible.
+--
+-- FREE and BETA are not new statuses: FREE is simply "no live subscription
+-- row" (already how the app treats it — see getMySubscription/EmptyState),
+-- and BETA is any plan an admin grants during the beta window (source =
+-- 'admin_grant', status = 'trialing' or 'active') — no schema distinction is
+-- needed because "beta" is a plan-naming/business decision, not an access
+-- state.
+--
+-- Postgres forbids using a newly ALTER TYPE ... ADD VALUE'd enum literal in
+-- the same transaction that added it (SQLSTATE 55P04), and migrations run as
+-- one transaction per file — so the value addition is isolated here; the
+-- index rebuild and RPCs that reference 'suspended' live in the next file.
+-- ============================================================================
+
+alter type public.subscription_status add value if not exists 'suspended';

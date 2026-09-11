@@ -19,7 +19,7 @@ export default async function PaperTradingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const [account, orders, instruments] = await Promise.all([
+  const [{ account }, orders, instruments] = await Promise.all([
     getMyPaperAccount(),
     getMyOrders(),
     getTradableInstruments(),

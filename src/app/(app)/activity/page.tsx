@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * statistics panel that would read as real performance.
  */
 export default async function ActivityPage() {
-  const [orders, trades, positions, account] = await Promise.all([
+  const [orders, trades, positions, { account }] = await Promise.all([
     getMyOrders(),
     getMyTrades(),
     getMyPositions(),

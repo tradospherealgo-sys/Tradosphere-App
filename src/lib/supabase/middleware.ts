@@ -39,11 +39,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  const path = request.nextUrl.pathname;
+
+  // Every route under /api/** implements its own auth boundary (a shared
+  // webhook/cron secret, or requireUser() returning a proper JSON 401) and
+  // expects to be reachable without a browser session cookie — Telegram and
+  // a cron scheduler have neither. Redirecting them to /login here would
+  // return an HTML page in place of the JSON response those callers expect,
+  // which breaks every one of them regardless of how correct their own
+  // auth check is. Session refresh/admin gating below is for page routes.
+  if (path.startsWith("/api/")) {
+    return response;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
   const isPublic =
     path.startsWith("/login") ||
     path.startsWith("/signup") ||

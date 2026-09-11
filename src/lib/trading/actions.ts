@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveMarketDataProvider } from "@/lib/market-data";
 import { shouldFill } from "@/lib/trading/charges";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 import type {
   Database,
   InstrumentKind,
@@ -445,18 +446,41 @@ export async function getMyTrades(): Promise<Trade[]> {
   return data ?? [];
 }
 
-export async function getMyPaperAccount() {
+export type PaperAccount = Database["public"]["Tables"]["paper_accounts"]["Row"];
+
+/**
+ * `.single()` returns an error both when no row matches and when the query
+ * itself fails (bad connection, RLS denial, etc). Collapsing both to `null`
+ * makes "you don't have an account yet" indistinguishable from "we couldn't
+ * check" — the caller needs to tell those apart to show an honest message.
+ */
+export async function getMyPaperAccount(): Promise<{
+  account: PaperAccount | null;
+  error: string | null;
+}> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return { account: null, error: null };
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("paper_accounts")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  return data ?? null;
+  if (error) {
+    if (error.code === "PGRST116") return { account: null, error: null };
+    return {
+      account: null,
+      error: dbErrorMessage(
+        "getMyPaperAccount",
+        error,
+        "Could not load your paper trading account."
+      ),
+    };
+  }
+
+  return { account: data, error: null };
 }

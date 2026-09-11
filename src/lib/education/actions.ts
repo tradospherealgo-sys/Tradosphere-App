@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/admin/audit";
 import type { LessonKind } from "@/types/database";
 import { toProseBlocks } from "@/lib/education/prose";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 
 /**
  * Education mutations.
@@ -40,7 +41,12 @@ export async function updateLessonProgress(
     },
     { onConflict: "user_id,lesson_id" }
   );
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("updateLessonProgress", error, "Could not save your progress."),
+    };
+  }
 
   revalidatePath("/education", "layout");
   return { ok: true };
@@ -58,7 +64,12 @@ export async function enrollInCourse(courseId: string): Promise<ActionResult> {
   const { error } = await supabase
     .from("course_enrollments")
     .upsert({ user_id: user.id, course_id: courseId }, { onConflict: "user_id,course_id" });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("enrollInCourse", error, "Could not enroll in this course."),
+    };
+  }
 
   revalidatePath("/education", "layout");
   return { ok: true };
@@ -82,7 +93,12 @@ export async function postCoachMessage(content: string): Promise<ActionResult> {
   const { error } = await supabase
     .from("coach_messages")
     .insert({ user_id: user.id, role: "user", content: trimmed });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("postCoachMessage", error, "Could not send your message."),
+    };
+  }
 
   revalidatePath("/education");
   return { ok: true };
@@ -144,7 +160,9 @@ export async function upsertCourse(
   const { data, error } = id
     ? await supabase.from("courses").update(row).eq("id", id).select("id").single()
     : await supabase.from("courses").insert(row).select("id").single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("upsertCourse", error, "Could not save the course.") };
+  }
 
   await writeAuditLog(user.id, id ? "course.update" : "course.create", "courses", data?.id);
   revalidateEducation();
@@ -161,7 +179,12 @@ export async function setCoursePublished(
     .from("courses")
     .update({ is_published: isPublished })
     .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("setCoursePublished", error, "Could not update publish state."),
+    };
+  }
 
   await writeAuditLog(
     user.id,
@@ -177,7 +200,9 @@ export async function deleteCourse(id: string): Promise<ActionResult> {
   const { user } = await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("courses").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("deleteCourse", error, "Could not delete the course.") };
+  }
 
   await writeAuditLog(user.id, "course.delete", "courses", id);
   revalidateEducation();
@@ -204,7 +229,12 @@ export async function createCourseModule(
     })
     .select("id")
     .single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("createCourseModule", error, "Could not create the module."),
+    };
+  }
 
   await writeAuditLog(user.id, "course_module.create", "course_modules", data?.id);
   revalidateEducation();
@@ -215,7 +245,12 @@ export async function deleteCourseModule(id: string): Promise<ActionResult> {
   const { user } = await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("course_modules").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("deleteCourseModule", error, "Could not delete the module."),
+    };
+  }
 
   await writeAuditLog(user.id, "course_module.delete", "course_modules", id);
   revalidateEducation();
@@ -276,7 +311,9 @@ export async function upsertLesson(
   const { data, error } = id
     ? await supabase.from("lessons").update(row).eq("id", id).select("id").single()
     : await supabase.from("lessons").insert(row).select("id").single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("upsertLesson", error, "Could not save the lesson.") };
+  }
 
   await writeAuditLog(user.id, id ? "lesson.update" : "lesson.create", "lessons", data?.id);
   revalidateEducation();
@@ -287,7 +324,9 @@ export async function deleteLesson(id: string): Promise<ActionResult> {
   const { user } = await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("lessons").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("deleteLesson", error, "Could not delete the lesson.") };
+  }
 
   await writeAuditLog(user.id, "lesson.delete", "lessons", id);
   revalidateEducation();

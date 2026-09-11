@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateSignalStatus, verifySignal } from "@/lib/signals/admin-actions";
+import { resolveWorkflowError, updateSignalStatus, verifySignal } from "@/lib/signals/admin-actions";
 import type { SignalStatus } from "@/types/database";
 
 const LIFECYCLE: { value: SignalStatus; label: string }[] = [
@@ -46,6 +46,31 @@ export function ReviewControls({ signalId }: { signalId: string }) {
         className="h-11 rounded-lg border border-down/40 px-4 text-sm text-down hover:bg-down/10 disabled:opacity-50"
       >
         Reject
+      </button>
+      {error && <span className="text-xs text-down">{error}</span>}
+    </div>
+  );
+}
+
+export function ResolveWorkflowErrorControl({ errorId }: { errorId: number }) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            const res = await resolveWorkflowError(errorId);
+            if (!res.ok) setError(res.error);
+          })
+        }
+        className="h-9 rounded-lg border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
+      >
+        {pending ? "Resolving…" : "Mark resolved"}
       </button>
       {error && <span className="text-xs text-down">{error}</span>}
     </div>

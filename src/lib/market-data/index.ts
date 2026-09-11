@@ -4,6 +4,7 @@ import { NoneProvider } from "./providers/none";
 import { NseUnofficialProvider } from "./providers/nse-unofficial";
 import { GenericRestProvider } from "./providers/generic-rest";
 import { SmcProvider } from "./providers/smc";
+import { UpstoxProvider } from "./providers/upstox";
 import { TestFixtureProvider, testFixtureEnabled } from "./providers/test-fixture";
 import { CachedMarketDataProvider } from "./cache";
 import type { MarketDataProvider } from "./types";
@@ -69,6 +70,8 @@ async function resolveProvider(): Promise<MarketDataProvider> {
     switch (data.provider) {
       case "smc":
         return new SmcProvider(data.config, data.secret_env_var);
+      case "upstox":
+        return new UpstoxProvider(data.config, data.secret_env_var);
       case "nse_unofficial":
         return new NseUnofficialProvider();
       case "generic_rest":

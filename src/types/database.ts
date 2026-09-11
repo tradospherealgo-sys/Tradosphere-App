@@ -35,6 +35,8 @@ export type SignalSourceKind =
   | "smc_auto_trender"
   | "tradosphere_ai"
   | "telegram_channel"
+  | "whatsapp_group"
+  | "api_connector"
   | "manual";
 
 export type SignalStatus =
@@ -48,11 +50,41 @@ export type SignalStatus =
 
 export type VerificationState = "unverified" | "verified" | "rejected";
 
+/** Signal OS classification. Only F&O/EQUITY/COMMODITY are ever tradeable —
+ *  the rest are informational content a desk sends that a client should
+ *  still see, just without a direction or a stop-loss. */
+export type SignalCategory =
+  | "F&O"
+  | "EQUITY"
+  | "COMMODITY"
+  | "IPO"
+  | "SIP"
+  | "MUTUAL_FUND"
+  | "INVESTMENT"
+  | "INSURANCE"
+  | "LOAN"
+  | "MARKET_UPDATE"
+  | "EDUCATION"
+  | "OTHER";
+
+export type RawMessageChannel = "telegram" | "whatsapp" | "api" | "manual";
+export type RawMessageParseStatus =
+  | "pending"
+  | "classified"
+  | "validated"
+  | "quarantined"
+  | "duplicate"
+  | "published"
+  | "rejected";
+export type DistributionDestination = "telegram" | "whatsapp" | "dashboard";
+export type DistributionStatus = "pending" | "sent" | "failed" | "retrying";
+
 export type BillingInterval = "monthly" | "quarterly" | "yearly";
 export type SubscriptionStatus =
   | "trialing"
   | "active"
   | "past_due"
+  | "suspended"
   | "expired"
   | "cancelled";
 export type PaymentStatus = "pending" | "succeeded" | "failed" | "refunded";
@@ -240,8 +272,14 @@ export type Signal = {
   id: string;
   source_id: string;
   symbol: string;
+  instrument_name: string | null;
+  exchange: string | null;
   instrument_kind: InstrumentKind;
-  direction: OrderSide;
+  category: SignalCategory;
+  /** Null for non-trade categories (IPO, SIP, MUTUAL_FUND, INVESTMENT,
+   *  INSURANCE, LOAN, MARKET_UPDATE, EDUCATION, OTHER). Required by a
+   *  database check constraint for F&O/EQUITY/COMMODITY. */
+  direction: OrderSide | null;
   entry_price: number | null;
   entry_low: number | null;
   entry_high: number | null;
@@ -260,10 +298,63 @@ export type Signal = {
   verified_at: string | null;
   origin_ref: string | null;
   raw_message: string | null;
+  normalized_message: string | null;
+  timeframe: string | null;
+  source_message_id: string | null;
+  source_timestamp: string | null;
+  ai_model: string | null;
+  fingerprint: string | null;
   issued_at: string;
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type RawSignalMessage = {
+  id: number;
+  source_id: string | null;
+  channel: RawMessageChannel;
+  external_chat_id: string | null;
+  external_message_id: string | null;
+  sender: string | null;
+  raw_text: string;
+  raw_payload: Record<string, unknown>;
+  normalized_text: string | null;
+  ai_category: SignalCategory | null;
+  ai_confidence: number | null;
+  ai_extraction: Record<string, unknown> | null;
+  ai_model: string | null;
+  fingerprint: string | null;
+  parse_status: RawMessageParseStatus;
+  quarantine_reason: string | null;
+  signal_id: string | null;
+  received_at: string;
+  processed_at: string | null;
+}
+
+export type DistributionLog = {
+  id: number;
+  signal_id: string;
+  destination: DistributionDestination;
+  status: DistributionStatus;
+  attempt_count: number;
+  last_error: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WorkflowError = {
+  id: number;
+  workflow_name: string;
+  node_name: string;
+  stage: string;
+  error_message: string;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
 }
 
 export type SignalEvent = {
@@ -467,15 +558,45 @@ export type Database = {
   public: {
     Tables: {
       profiles: Table<Profile, "id" | "email">;
-      paper_accounts: Table<PaperAccount, "user_id">;
+      paper_accounts: Table<
+        PaperAccount,
+        "user_id",
+        [
+          {
+            foreignKeyName: "paper_accounts_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
       orders: Table<
         Order,
-        "account_id" | "user_id" | "symbol" | "side" | "quantity"
+        "account_id" | "user_id" | "symbol" | "side" | "quantity",
+        [
+          {
+            foreignKeyName: "orders_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ]
       >;
       order_events: Table<OrderEvent, "order_id" | "user_id" | "event">;
       positions: Table<
         Position,
-        "account_id" | "user_id" | "symbol" | "side" | "quantity" | "avg_price"
+        "account_id" | "user_id" | "symbol" | "side" | "quantity" | "avg_price",
+        [
+          {
+            foreignKeyName: "positions_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ]
       >;
       trades: Table<
         Trade,
@@ -578,6 +699,36 @@ export type Database = {
       telegram_inbox: Table<
         TelegramInboxRow,
         "chat_id" | "message_id" | "text" | "raw"
+      >;
+      raw_signal_messages: Table<
+        RawSignalMessage,
+        "channel" | "raw_text",
+        [
+          {
+            foreignKeyName: "raw_signal_messages_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "signal_sources";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      distribution_logs: Table<
+        DistributionLog,
+        "signal_id" | "destination",
+        [
+          {
+            foreignKeyName: "distribution_logs_signal_id_fkey";
+            columns: ["signal_id"];
+            isOneToOne: false;
+            referencedRelation: "signals";
+            referencedColumns: ["id"];
+          },
+        ]
+      >;
+      workflow_errors: Table<
+        WorkflowError,
+        "workflow_name" | "node_name" | "stage" | "error_message"
       >;
       plans: Table<Plan, "slug" | "name" | "billing_interval" | "price_minor">;
       subscriptions: Table<
@@ -731,11 +882,69 @@ export type Database = {
         Args: { p_signal_id: string; p_status: SignalStatus; p_detail?: string | null };
         Returns: Signal;
       };
+      ingest_classified_signal: {
+        Args: {
+          p_source_id: string;
+          p_raw_message_id: number | null;
+          p_category: SignalCategory;
+          p_symbol: string;
+          p_instrument_name?: string | null;
+          p_exchange?: string | null;
+          p_instrument_kind?: InstrumentKind;
+          p_direction?: OrderSide | null;
+          p_entry_price?: number | null;
+          p_entry_low?: number | null;
+          p_entry_high?: number | null;
+          p_stop_loss?: number | null;
+          p_target_1?: number | null;
+          p_target_2?: number | null;
+          p_target_3?: number | null;
+          p_expiry?: string | null;
+          p_timeframe?: string | null;
+          p_confidence?: number | null;
+          p_rationale?: string | null;
+          p_raw_message?: string | null;
+          p_normalized_message?: string | null;
+          p_source_message_id?: string | null;
+          p_source_timestamp?: string | null;
+          p_fingerprint?: string | null;
+          p_ai_model?: string | null;
+        };
+        Returns: Signal;
+      };
+      quarantine_raw_message: {
+        Args: { p_raw_message_id: number; p_reason: string };
+        Returns: RawSignalMessage;
+      };
+      log_distribution: {
+        Args: {
+          p_signal_id: string;
+          p_destination: DistributionDestination;
+          p_status: DistributionStatus;
+          p_error?: string | null;
+        };
+        Returns: DistributionLog;
+      };
+      log_workflow_error: {
+        Args: {
+          p_workflow_name: string;
+          p_node_name: string;
+          p_stage: string;
+          p_error_message: string;
+          p_payload?: Record<string, unknown>;
+        };
+        Returns: WorkflowError;
+      };
       admin_grant_subscription: {
         Args: { p_user_id: string; p_plan_id: string };
         Returns: Subscription;
       };
       admin_cancel_subscription: { Args: { p_subscription_id: string }; Returns: Subscription };
+      admin_suspend_subscription: {
+        Args: { p_subscription_id: string; p_reason: string | null };
+        Returns: Subscription;
+      };
+      admin_unsuspend_subscription: { Args: { p_subscription_id: string }; Returns: Subscription };
       start_checkout: { Args: { p_plan_id: string }; Returns: Payment };
       record_payment_success: {
         Args: { p_payment_id: string; p_gateway: string; p_gateway_ref: string };

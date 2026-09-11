@@ -5,6 +5,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/clients", label: "Client Management" },
   { href: "/admin/integrations", label: "Integrations" },
   { href: "/admin/signals", label: "Signal Desk" },
+  { href: "/admin/trading", label: "Paper Trading" },
   { href: "/admin/subscriptions", label: "Subscriptions" },
   { href: "/admin/education", label: "Education CMS" },
   { href: "/admin/notifications", label: "Notifications" },

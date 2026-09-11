@@ -58,3 +58,36 @@ export async function getTelegramInbox(limit = 50) {
     .limit(limit);
   return data ?? [];
 }
+
+/**
+ * Unresolved n8n Signal OS pipeline failures — AI call errors, malformed
+ * output, rejected inserts, unreachable destinations. Without this, a stage
+ * failure is only visible by reading n8n's own execution logs directly.
+ */
+export async function getUnresolvedWorkflowErrors(limit = 50) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("workflow_errors")
+    .select("*")
+    .eq("resolved", false)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+/**
+ * Per-destination delivery attempts (Telegram/WhatsApp/dashboard) for
+ * published signals — the n8n pipeline writes these on every send, but until
+ * now nothing in the app ever read them back.
+ */
+export async function getRecentDistributionLogs(limit = 50) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("distribution_logs")
+    .select("*, signals(symbol, category)")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}

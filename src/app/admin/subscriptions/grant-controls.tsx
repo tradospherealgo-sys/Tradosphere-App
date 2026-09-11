@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { cancelSubscription, grantSubscription } from "@/lib/subscriptions/actions";
+import {
+  cancelSubscription,
+  grantSubscription,
+  suspendSubscription,
+  unsuspendSubscription,
+} from "@/lib/subscriptions/actions";
 import type { Plan } from "@/types/database";
 
 const input =
@@ -105,6 +110,85 @@ export function CancelButton({ subscriptionId }: { subscriptionId: string }) {
         className="text-xs text-down disabled:opacity-50"
       >
         {pending ? "Cancelling…" : "Cancel"}
+      </button>
+      {error ? <span className="ml-2 text-xs text-down">{error}</span> : null}
+    </>
+  );
+}
+
+/** Pauses access reversibly — distinct from Cancel, which ends the subscription outright. */
+export function SuspendButton({ subscriptionId }: { subscriptionId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [showReason, setShowReason] = useState(false);
+  const [reason, setReason] = useState("");
+
+  if (showReason) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Reason (optional)"
+          className="min-h-8 w-32 rounded-lg border border-border bg-surface-raised px-2 text-xs text-text"
+        />
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await suspendSubscription(subscriptionId, reason);
+              if (!result.ok) setError(result.error);
+              else setShowReason(false);
+            })
+          }
+          className="text-xs text-warn disabled:opacity-50"
+        >
+          {pending ? "Suspending…" : "Confirm"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowReason(false)}
+          className="text-xs text-text-faint"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowReason(true)}
+        className="text-xs text-warn"
+      >
+        Suspend
+      </button>
+      {error ? <span className="ml-2 text-xs text-down">{error}</span> : null}
+    </>
+  );
+}
+
+export function UnsuspendButton({ subscriptionId }: { subscriptionId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await unsuspendSubscription(subscriptionId);
+            if (!result.ok) setError(result.error);
+          })
+        }
+        className="text-xs text-up disabled:opacity-50"
+      >
+        {pending ? "Restoring…" : "Restore"}
       </button>
       {error ? <span className="ml-2 text-xs text-down">{error}</span> : null}
     </>

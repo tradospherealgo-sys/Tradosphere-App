@@ -3,6 +3,7 @@ import { IntegrationCard } from "./integration-card";
 
 const MARKET_DATA_PROVIDERS = [
   { value: "none", label: "None (no data)" },
+  { value: "upstox", label: "Upstox (official API)" },
   { value: "smc", label: "SMC Global (licensed)" },
   { value: "nse_unofficial", label: "NSE (unofficial, dev-grade)" },
   { value: "generic_rest", label: "Generic REST (licensed vendor)" },
@@ -10,6 +11,7 @@ const MARKET_DATA_PROVIDERS = [
 
 const OPTION_CHAIN_PROVIDERS = [
   { value: "none", label: "None (no data)" },
+  { value: "upstox", label: "Upstox (official API)" },
   { value: "smc", label: "SMC Global (licensed)" },
   { value: "nse_unofficial", label: "NSE (unofficial, dev-grade)" },
 ];

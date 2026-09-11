@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac } from "crypto";
 
 /**
  * Shared SMC Global session + response-mapping layer.
@@ -91,10 +92,10 @@ export class SmcSession {
           body: JSON.stringify({
             clientcode: this.clientCode,
             password: this.apiSecret,
-            // Sent only when the account enforces 2FA. The seed itself never
-            // leaves the server; upstream expects the current OTP, which the
-            // operator supplies as a static app password when TOTP is off.
-            ...(this.totpSecret ? { totp: this.totpSecret } : {}),
+            // Sent only when the account enforces 2FA. Upstream expects the
+            // current 6-digit RFC 6238 code, never the seed itself — the seed
+            // stays server-side and is only ever used to derive this value.
+            ...(this.totpSecret ? { totp: generateTotp(this.totpSecret) } : {}),
           }),
           cache: "no-store",
         }
@@ -143,6 +144,51 @@ export class SmcSession {
       return null;
     }
   }
+}
+
+/**
+ * RFC 6238 TOTP: the 6-digit code an authenticator app would show right now,
+ * derived from a base32 seed. The seed itself must never be sent anywhere as
+ * if it were the code — this function is the only thing that is allowed to
+ * touch it, and only to produce a short-lived derived value.
+ */
+export function generateTotp(
+  base32Secret: string,
+  { digits = 6, periodSeconds = 30, timestamp = Date.now() }: { digits?: number; periodSeconds?: number; timestamp?: number } = {}
+): string {
+  const key = base32Decode(base32Secret);
+  const counter = Math.floor(timestamp / 1000 / periodSeconds);
+
+  const counterBytes = Buffer.alloc(8);
+  counterBytes.writeUInt32BE(Math.floor(counter / 2 ** 32), 0);
+  counterBytes.writeUInt32BE(counter >>> 0, 4);
+
+  const hmac = createHmac("sha1", key).update(counterBytes).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const binCode =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
+
+  return String(binCode % 10 ** digits).padStart(digits, "0");
+}
+
+const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function base32Decode(input: string): Buffer {
+  const clean = input.trim().toUpperCase().replace(/=+$/, "");
+  let bits = "";
+  for (const char of clean) {
+    const index = BASE32_ALPHABET.indexOf(char);
+    if (index === -1) continue;
+    bits += index.toString(2).padStart(5, "0");
+  }
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return Buffer.from(bytes);
 }
 
 /**

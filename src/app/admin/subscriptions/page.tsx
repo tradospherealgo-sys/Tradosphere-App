@@ -5,7 +5,7 @@ import {
 } from "@/lib/subscriptions/reads";
 import { getAllProfiles } from "@/lib/admin/reads";
 import { PlanEditor } from "./plan-editor";
-import { CancelButton, GrantForm } from "./grant-controls";
+import { CancelButton, GrantForm, SuspendButton, UnsuspendButton } from "./grant-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
   active: "text-up",
   trialing: "text-accent",
   past_due: "text-warn",
+  suspended: "text-down",
   expired: "text-text-faint",
   cancelled: "text-text-faint",
 };
@@ -134,7 +135,14 @@ export default async function AdminSubscriptionsPage() {
                         {date(s.current_period_end)}
                       </td>
                       <td className="py-2 text-right">
-                        {cancellable ? <CancelButton subscriptionId={s.id} /> : null}
+                        <div className="flex justify-end gap-3">
+                          {s.status === "suspended" ? (
+                            <UnsuspendButton subscriptionId={s.id} />
+                          ) : cancellable ? (
+                            <SuspendButton subscriptionId={s.id} />
+                          ) : null}
+                          {cancellable ? <CancelButton subscriptionId={s.id} /> : null}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -6,6 +6,7 @@ import { getActiveMarketDataProvider } from "@/lib/market-data";
 import { getActiveOptionChainProvider } from "@/lib/options";
 import { requireAdmin } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/admin/audit";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 import type { AppRole, NotificationKind } from "@/types/database";
 
 const NOTIFICATION_KINDS: NotificationKind[] = [
@@ -48,7 +49,9 @@ export async function setUserRole(userId: string, role: AppRole): Promise<Action
   if (guard) return guard;
   const supabase = await createClient();
   const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("setUserRole", error, "Could not update the role.") };
+  }
   const actor = await currentUserId();
   if (actor) await writeAuditLog(actor, `set_role:${role}`, "profiles", userId);
   revalidatePath("/admin/clients");
@@ -63,7 +66,12 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
     .from("profiles")
     .update({ is_active: isActive })
     .eq("id", userId);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("setUserActive", error, "Could not update account status."),
+    };
+  }
   const actor = await currentUserId();
   if (actor) {
     await writeAuditLog(actor, isActive ? "activate_user" : "deactivate_user", "profiles", userId);
@@ -97,7 +105,12 @@ export async function updateIntegrationConfig(params: {
       updated_by: user.id,
     })
     .eq("id", params.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("updateIntegrationConfig", error, "Could not save the configuration."),
+    };
+  }
   await writeAuditLog(user.id, "update_integration_config", "integration_configs", params.id);
   revalidatePath("/admin/integrations");
   return { ok: true };
@@ -128,7 +141,12 @@ export async function testIntegrationConnection(
     .from("integration_configs")
     .update({ last_tested_at: result.testedAt, last_test_result: result })
     .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("testIntegrationConnection", error, "Could not save the test result."),
+    };
+  }
 
   revalidatePath("/admin/integrations");
   return result.ok
@@ -157,7 +175,12 @@ export async function sendNotification(params: {
     kind: params.kind as NotificationKind,
     user_id: params.userId,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("sendNotification", error, "Could not send the notification."),
+    };
+  }
   const actor = await currentUserId();
   if (actor) await writeAuditLog(actor, "send_notification", "notifications");
   revalidatePath("/admin/notifications");
@@ -184,7 +207,12 @@ export async function updateSystemSetting(key: string, rawValue: string): Promis
     .from("system_settings")
     .update({ value: parsed, updated_by: user.id })
     .eq("key", key);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("updateSystemSetting", error, "Could not update the setting."),
+    };
+  }
   await writeAuditLog(user.id, "update_system_setting", "system_settings", key);
   revalidatePath("/admin/settings");
   return { ok: true };

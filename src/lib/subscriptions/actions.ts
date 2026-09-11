@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/admin/audit";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 import type { BillingInterval } from "@/types/database";
 
 /**
@@ -61,6 +62,42 @@ export async function cancelSubscription(
   return { ok: true };
 }
 
+/**
+ * Pauses access without cancelling — reversible, unlike cancel. Used for
+ * billing disputes/policy review rather than a permanent end to the plan.
+ */
+export async function suspendSubscription(
+  subscriptionId: string,
+  reason: string
+): Promise<ActionResult> {
+  const { user } = await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_suspend_subscription", {
+    p_subscription_id: subscriptionId,
+    p_reason: reason.trim() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await writeAuditLog(user.id, "subscription.suspend", "subscriptions", subscriptionId);
+  revalidateBillingSurfaces();
+  return { ok: true };
+}
+
+export async function unsuspendSubscription(
+  subscriptionId: string
+): Promise<ActionResult> {
+  const { user } = await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_unsuspend_subscription", {
+    p_subscription_id: subscriptionId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await writeAuditLog(user.id, "subscription.unsuspend", "subscriptions", subscriptionId);
+  revalidateBillingSurfaces();
+  return { ok: true };
+}
+
 export type PlanDraft = {
   slug: string;
   name: string;
@@ -113,7 +150,9 @@ export async function upsertPlan(
   const { data, error } = id
     ? await supabase.from("plans").update(row).eq("id", id).select("id").single()
     : await supabase.from("plans").insert(row).select("id").single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("upsertPlan", error, "Could not save the plan.") };
+  }
 
   await writeAuditLog(user.id, id ? "plan.update" : "plan.create", "plans", data?.id);
   revalidateBillingSurfaces();
@@ -130,7 +169,9 @@ export async function setPlanActive(
     .from("plans")
     .update({ is_active: isActive })
     .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return { ok: false, error: dbErrorMessage("setPlanActive", error, "Could not update the plan.") };
+  }
 
   await writeAuditLog(user.id, isActive ? "plan.enable" : "plan.disable", "plans", id);
   revalidateBillingSurfaces();

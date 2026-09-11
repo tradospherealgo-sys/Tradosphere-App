@@ -14,6 +14,7 @@ const STATUS_STYLES: Record<string, string> = {
   active: "text-up",
   trialing: "text-accent",
   past_due: "text-warn",
+  suspended: "text-down",
   expired: "text-text-faint",
   cancelled: "text-text-faint",
 };

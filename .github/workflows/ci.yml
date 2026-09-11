@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static-checks:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - name: Production build
+        # Placeholder values only — no real Supabase project is contacted
+        # during a build. They exist so module-level "is this configured"
+        # checks don't throw while compiling the static/dynamic route tree.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        run: npm run build
+
+  db-tests:
+    name: Migrations + SQL tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/verify-db.sh
+
+  e2e:
+    name: E2E (public + authenticated)
+    runs-on: ubuntu-latest
+    needs: static-checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # The authenticated tier (order-lifecycle, mobile-navigation,
+      # paper-trading-flow) self-skips locally when E2E_TEST_EMAIL/PASSWORD
+      # are unset, by design, so `npm run test:e2e` stays runnable without
+      # live credentials on a laptop. That fallback must not apply in CI: a
+      # missing secret here should fail the job loudly, not quietly drop the
+      # only tier of tests that proves money moves correctly end to end.
+      - name: Require authenticated E2E credentials
+        run: |
+          if [ -z "${{ secrets.E2E_TEST_EMAIL }}" ] || [ -z "${{ secrets.E2E_TEST_PASSWORD }}" ]; then
+            echo "::error::E2E_TEST_EMAIL / E2E_TEST_PASSWORD repo secrets are not set." \
+                 "The authenticated E2E tier (order-lifecycle, mobile-navigation," \
+                 "paper-trading-flow) would silently self-skip without them." \
+                 "Set both secrets — see scripts/e2e-local.sh for what they need to be." >&2
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+
+      - name: Run full E2E suite against a local Supabase stack
+        env:
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: ./scripts/e2e-local.sh
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

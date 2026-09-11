@@ -173,3 +173,5 @@ function mapCandle(row: unknown): Candle | null {
     volume: typeof r.volume === "number" ? r.volume : null,
   };
 }
+
+export const __testing = { mapQuote, mapCandle };

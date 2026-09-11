@@ -3,7 +3,7 @@ import { getMyPaperAccount } from "@/lib/trading/actions";
 import { SettingsForm } from "./settings-form";
 
 export default async function SettingsPage() {
-  const [profile, account] = await Promise.all([getMyProfile(), getMyPaperAccount()]);
+  const [profile, { account }] = await Promise.all([getMyProfile(), getMyPaperAccount()]);
 
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">

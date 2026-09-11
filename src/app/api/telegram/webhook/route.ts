@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ingestTelegramMessage } from "@/lib/signals/ingest";
+import { secretsMatch } from "@/lib/security/secrets";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const presented = request.headers.get("x-telegram-bot-api-secret-token");
-  if (presented !== expected) {
+  if (!secretsMatch(presented, expected)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

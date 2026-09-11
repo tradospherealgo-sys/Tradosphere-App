@@ -1,0 +1,566 @@
+{
+  "name": "Tradosphere Signal OS — Master Pipeline",
+  "nodes": [
+    {
+      "id": "note_readme",
+      "name": "Read Me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-680, -420],
+      "parameters": {
+        "width": 620,
+        "height": 380,
+        "content": "## Tradosphere Signal OS — Master Pipeline\n\nIngestion (Telegram / WhatsApp / future API) → Normalize → Insert raw → AI Agent extraction → Deterministic validation → Fingerprint dedup → Publish to `signals` → Distribute (Telegram / WhatsApp / Dashboard), each destination logged and retried independently.\n\nThis is additive to the existing app: it does NOT touch the existing single-bot `telegram_inbox` rule-based path (src/lib/signals/ingest.ts). It writes through `raw_signal_messages`, `signals`, `distribution_logs`, `workflow_errors` from migration 0018_signal_os.sql.\n\nEvery Postgres node here calls a SECURITY DEFINER function grantted to `service_role` only — no browser role can reach these tables directly.\n\nSee the \"Credentials Needed\" note for what to configure before activating."
+      }
+    },
+    {
+      "id": "note_creds",
+      "name": "Credentials Needed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-680, 20],
+      "parameters": {
+        "width": 620,
+        "height": 460,
+        "content": "## Credentials to create after import\n\n1. **Postgres** — \"Supabase Postgres (Tradosphere)\". Host/port/db/user/password from Supabase Project Settings → Database. Used by every DB node.\n2. **Telegram API** — bot token for the Signal OS ingestion bot (can be the same bot as the app's existing webhook bot, or a dedicated one). Add it to the 5 source channels.\n3. **WhatsApp Trigger API** + **WhatsApp API** — Meta WhatsApp Business Cloud credentials (Business Account ID, Phone Number ID, access token, webhook verify token). IMPORTANT: the official Cloud API receives messages sent to YOUR business number — it does not read arbitrary community WhatsApp groups you don't administer. The 3 \"WhatsApp source groups\" need to relay into this business number (e.g. group admin forwards, or the group is itself a WhatsApp Business-managed channel). This is a real platform constraint, not an n8n limitation.\n4. **Anthropic (or your preferred LLM provider) API key** — used by the AI Agent's language model sub-node.\n5. **SMC Auto Trender** — no credential exists. The HTTP Request node for it is disabled and its URL is a placeholder. WAITING FOR OFFICIAL SMC API ACCESS.\n\nNo credential is hard-coded in this file — every credential block below references a placeholder id that will not resolve on your instance; n8n will prompt you to bind a real credential to each node after import."
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Telegram Channels In",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [-200, -120],
+      "parameters": {
+        "updates": ["message", "channel_post"],
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Signal Bot" }
+      }
+    },
+    {
+      "id": "n4",
+      "name": "WhatsApp Groups In",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [-200, 120],
+      "parameters": {
+        "updates": ["messages"]
+      },
+      "credentials": {
+        "whatsAppTriggerApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere WhatsApp Business Cloud" }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "SMC Poll Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-200, 360],
+      "disabled": true,
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+      }
+    },
+    {
+      "id": "n6",
+      "name": "SMC Auto Trender API - Waiting For Access",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [40, 360],
+      "disabled": true,
+      "notesInFlow": true,
+      "notes": "WAITING FOR OFFICIAL SMC API ACCESS. Placeholder URL. Do not enable until SMC publishes a documented Auto Trender endpoint and credentials exist.",
+      "parameters": {
+        "url": "https://REPLACE-WITH-OFFICIAL-SMC-AUTO-TRENDER-ENDPOINT.example/api/signals",
+        "method": "GET",
+        "authentication": "none",
+        "options": {}
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Test Mode Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-200, 620],
+      "parameters": {}
+    },
+    {
+      "id": "n8",
+      "name": "Normalize Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [80, -120],
+      "parameters": {
+        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const update = item.json;\n  const msg = update.message || update.channel_post || update.edited_message;\n  if (!msg || !msg.text) continue;\n  const chatId = String(msg.chat?.id ?? '');\n  const messageId = String(msg.message_id ?? '');\n  const sender = msg.from?.username || msg.from?.first_name || null;\n  const text = msg.text || '';\n  const receivedAt = new Date((msg.date ? msg.date * 1000 : Date.now())).toISOString();\n  out.push({\n    json: {\n      channel: 'telegram',\n      external_chat_id: chatId,\n      external_chat_id_sql: esc(chatId),\n      external_message_id: messageId,\n      external_message_id_sql: esc(messageId),\n      sender,\n      sender_sql: esc(sender),\n      raw_text: text,\n      raw_text_sql: esc(text),\n      raw_payload: update,\n      raw_payload_json_sql: esc(JSON.stringify(update)),\n      received_at: receivedAt,\n      is_test: false\n    }\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Normalize WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [80, 120],
+      "parameters": {
+        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json;\n  const entries = body.entry || [];\n  for (const entry of entries) {\n    const changes = entry.changes || [];\n    for (const change of changes) {\n      const value = change.value || {};\n      const messages = value.messages || [];\n      for (const m of messages) {\n        const chatId = String(value.metadata?.phone_number_id ?? m.from ?? '');\n        const messageId = String(m.id ?? '');\n        const text = m.text?.body || m.button?.text || '';\n        if (!text) continue;\n        const receivedAt = new Date((m.timestamp ? Number(m.timestamp) * 1000 : Date.now())).toISOString();\n        out.push({\n          json: {\n            channel: 'whatsapp',\n            external_chat_id: chatId,\n            external_chat_id_sql: esc(chatId),\n            external_message_id: messageId,\n            external_message_id_sql: esc(messageId),\n            sender: m.from || null,\n            sender_sql: esc(m.from || null),\n            raw_text: text,\n            raw_text_sql: esc(text),\n            raw_payload: body,\n            raw_payload_json_sql: esc(JSON.stringify(body)),\n            received_at: receivedAt,\n            is_test: false\n          }\n        });\n      }\n    }\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Normalize SMC API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, 360],
+      "parameters": {
+        "jsCode": "// WAITING FOR OFFICIAL SMC API ACCESS — upstream HTTP node is disabled.\n// The response shape below is a placeholder guess, not a documented\n// contract. Update once real API docs exist; keep the HTTP node disabled\n// until then.\nconst esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const rows = Array.isArray(item.json) ? item.json : (item.json.data || item.json.signals || []);\n  for (const row of rows) {\n    const text = row.text || row.message || JSON.stringify(row);\n    out.push({\n      json: {\n        channel: 'api',\n        external_chat_id: 'smc_auto_trender',\n        external_chat_id_sql: 'smc_auto_trender',\n        external_message_id: String(row.id ?? ''),\n        external_message_id_sql: esc(String(row.id ?? '')),\n        sender: 'smc_auto_trender',\n        sender_sql: 'smc_auto_trender',\n        raw_text: text,\n        raw_text_sql: esc(text),\n        raw_payload: row,\n        raw_payload_json_sql: esc(JSON.stringify(row)),\n        received_at: new Date().toISOString(),\n        is_test: false\n      }\n    });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Test Fixture Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [80, 620],
+      "parameters": {
+        "jsCode": "// Deterministic sample so the full pipeline can be exercised without\n// touching a real source or a real client-facing channel. \"Test Mode\n// Check\" downstream skips the real Telegram/WhatsApp sends for is_test\n// items.\n//\n// Before running: register a signal_sources row for this fixture, e.g.\n//   insert into signal_sources (slug, name, kind, telegram_chat_id, is_active)\n//   values ('test-fixture', 'Test Fixture', 'manual', 'TEST_FIXTURE', true);\nconst text = 'BUY BANKNIFTY 51000 CE above 420, SL 380, Target1 460 Target2 500. Intraday view, 30-45 min timeframe.';\nconst id = `test-${Date.now()}`;\nreturn [{\n  json: {\n    channel: 'telegram',\n    external_chat_id: 'TEST_FIXTURE',\n    external_chat_id_sql: 'TEST_FIXTURE',\n    external_message_id: id,\n    external_message_id_sql: id,\n    sender: 'test_harness',\n    sender_sql: 'test_harness',\n    raw_text: text,\n    raw_text_sql: text.replace(/'/g, \"''\"),\n    raw_payload: { source: 'test_mode_trigger' },\n    raw_payload_json_sql: JSON.stringify({ source: 'test_mode_trigger' }).replace(/'/g, \"''\"),\n    received_at: new Date().toISOString(),\n    is_test: true\n  }\n}];"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [560, 120],
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 4
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Insert Raw Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [800, 120],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with src as (\n  select id from public.signal_sources\n  where (telegram_chat_id = '{{$json.external_chat_id_sql}}' or whatsapp_group_id = '{{$json.external_chat_id_sql}}')\n  limit 1\n)\ninsert into public.raw_signal_messages (source_id, channel, external_chat_id, external_message_id, sender, raw_text, raw_payload, received_at)\nselect (select id from src), '{{$json.channel}}', '{{$json.external_chat_id_sql}}', '{{$json.external_message_id_sql}}',\n       nullif('{{$json.sender_sql}}', ''), '{{$json.raw_text_sql}}', '{{$json.raw_payload_json_sql}}'::jsonb, '{{$json.received_at}}'::timestamptz\non conflict (source_id, external_message_id) where external_message_id is not null\ndo nothing\nreturning id, source_id, channel, external_message_id, raw_text, received_at, (source_id is not null) as source_found;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Source Registered",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1040, 120],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.source_found }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Quarantine Unregistered Source",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1280, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from public.quarantine_raw_message({{$json.id}}, 'No registered signal source is bound to this chat/channel.');",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Ignored Unregistered Source",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1520, 300],
+      "parameters": {}
+    },
+    {
+      "id": "n17",
+      "name": "AI Agent Extract And Classify",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1280, -60],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.raw_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the Tradosphere Signal OS extraction agent. You read one raw message from a trusted desk channel (Telegram, WhatsApp, or an approved API) and convert it into strict structured JSON. Output ONLY a single JSON object matching the schema — no commentary, no markdown fencing.\n\nCategories (pick exactly one): F&O, EQUITY, COMMODITY, IPO, SIP, MUTUAL_FUND, INVESTMENT, INSURANCE, LOAN, MARKET_UPDATE, EDUCATION, OTHER.\n\nCRITICAL RULE: you must NEVER invent a missing financial or trading parameter. If entry, stop_loss, a target, expiry, or any other field is not explicitly present in the source message, return null for it. Do not estimate, round, infer from a chart, or fill in a 'reasonable' number. A missing field is null, always — fabricating a price is the single worst failure mode of this system.\n\nSet is_signal to true only if the message is an actionable trade call or a genuine investment-relevant item (IPO, SIP, mutual fund note, insurance/loan product, market update, education note). Promotional spam, greetings, unrelated chatter, or messages with no identifiable instrument/topic get is_signal: false and category: OTHER.\n\nFor F&O/EQUITY/COMMODITY: action is BUY or SELL only if explicit or unambiguous (\"buy\"/\"long\" -> BUY, \"sell\"/\"short\" -> SELL); otherwise null. symbol is the ticker/instrument code as written (e.g. BANKNIFTY, RELIANCE). instrument is the human-readable name if it differs from symbol. exchange is NSE, BSE, or MCX only if stated, else null. targets is every target level mentioned, in the order given, as an empty array if none.\n\nnormalized_message is a clean, readable rewrite of the raw message — it must never add a fact that was not present in the original."
+        }
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Claude Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1160, 180],
+      "parameters": {
+        "model": { "value": "claude-sonnet-4-5-20250929" },
+        "options": {}
+      },
+      "credentials": {
+        "anthropicApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere LLM Provider" }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Structured Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [1400, 180],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"is_signal\":{\"type\":\"boolean\"},\"category\":{\"type\":\"string\",\"enum\":[\"F&O\",\"EQUITY\",\"COMMODITY\",\"IPO\",\"SIP\",\"MUTUAL_FUND\",\"INVESTMENT\",\"INSURANCE\",\"LOAN\",\"MARKET_UPDATE\",\"EDUCATION\",\"OTHER\"]},\"instrument\":{\"type\":[\"string\",\"null\"]},\"symbol\":{\"type\":[\"string\",\"null\"]},\"exchange\":{\"type\":[\"string\",\"null\"]},\"action\":{\"type\":[\"string\",\"null\"],\"enum\":[\"BUY\",\"SELL\",null]},\"entry\":{\"type\":[\"number\",\"null\"]},\"stop_loss\":{\"type\":[\"number\",\"null\"]},\"targets\":{\"type\":\"array\",\"items\":{\"type\":\"number\"}},\"expiry\":{\"type\":[\"string\",\"null\"]},\"timeframe\":{\"type\":[\"string\",\"null\"]},\"confidence\":{\"type\":[\"number\",\"null\"]},\"rationale\":{\"type\":[\"string\",\"null\"]},\"normalized_message\":{\"type\":\"string\"}},\"required\":[\"is_signal\",\"category\",\"normalized_message\"]}"
+      },
+      "notes": "Verify the exact parameter key (inputSchema vs jsonSchema) against your installed n8n version's node panel after import — the schema content itself is correct JSON Schema either way."
+    },
+    {
+      "id": "n20",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, -60],
+      "parameters": {
+        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst VALID_CATEGORIES = ['F&O','EQUITY','COMMODITY','IPO','SIP','MUTUAL_FUND','INVESTMENT','INSURANCE','LOAN','MARKET_UPDATE','EDUCATION','OTHER'];\nconst TRADE_CATEGORIES = ['F&O','EQUITY','COMMODITY'];\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\n\nconst out = [];\nfor (const item of $input.all()) {\n  const rm = $('Insert Raw Message').item.json;\n  const isTest = $('Merge All Sources').item.json.is_test === true;\n  const raw = item.json.output ?? item.json;\n\n  let p;\n  try {\n    p = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  } catch (e) {\n    p = { is_signal: false, category: 'OTHER', normalized_message: rm.raw_text, _parse_error: `AI output was not valid JSON: ${e.message}` };\n  }\n\n  const category = VALID_CATEGORIES.includes(p.category) ? p.category : 'OTHER';\n  const isTradeCategory = TRADE_CATEGORIES.includes(category);\n  const action = (p.action === 'BUY' || p.action === 'SELL') ? p.action : null;\n  const targets = Array.isArray(p.targets) ? p.targets.map(num).filter((v) => v !== null) : [];\n  const entry = num(p.entry);\n  const stopLoss = num(p.stop_loss);\n  const confidence = num(p.confidence);\n\n  let validationReason = null;\n  if (p._parse_error) validationReason = p._parse_error;\n  else if (p.is_signal !== true) validationReason = 'AI classified this as not a signal.';\n  else if (!p.symbol) validationReason = 'No symbol/instrument identified.';\n  else if (isTradeCategory && !action) validationReason = 'Trade category but no clear BUY/SELL action.';\n  else if (entry !== null && stopLoss !== null && entry === stopLoss) validationReason = 'Entry and stop-loss are identical.';\n  else if (confidence !== null && (confidence < 0 || confidence > 100)) validationReason = 'Confidence out of range.';\n  const valid = validationReason === null;\n\n  const today = new Date().toISOString().slice(0, 10);\n  const fingerprintSource = [category, p.symbol, action, entry, stopLoss, targets.join(',')]\n    .map((v) => (v === null || v === undefined) ? '' : String(v))\n    .join('|')\n    .toUpperCase();\n  const fingerprint = `${today}|${fingerprintSource}`;\n\n  out.push({\n    json: {\n      valid,\n      validation_reason_sql: esc(validationReason),\n      category,\n      is_trade_category: isTradeCategory,\n      instrument_sql: esc(p.instrument ?? null),\n      symbol: p.symbol ?? null,\n      symbol_sql: esc(p.symbol ?? null),\n      exchange_sql: esc(p.exchange ?? null),\n      action,\n      entry,\n      stop_loss: stopLoss,\n      target_1: targets[0] ?? null,\n      target_2: targets[1] ?? null,\n      target_3: targets[2] ?? null,\n      expiry: p.expiry ?? null,\n      timeframe_sql: esc(p.timeframe ?? null),\n      confidence,\n      rationale_sql: esc(p.rationale ?? null),\n      raw_message_sql: esc(rm.raw_text),\n      normalized_message_sql: esc(p.normalized_message ?? rm.raw_text),\n      fingerprint_sql: esc(fingerprint),\n      raw_message_id: rm.id,\n      source_id: rm.source_id,\n      channel: rm.channel,\n      source_message_id_sql: esc(rm.external_message_id),\n      source_timestamp: rm.received_at,\n      is_test: isTest\n    }\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Validation Passed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1760, -60],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Quarantine Invalid Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, 140],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from public.quarantine_raw_message({{$json.raw_message_id}}, '{{$json.validation_reason_sql}}');",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Quarantined Invalid",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2240, 140],
+      "parameters": {}
+    },
+    {
+      "id": "n24",
+      "name": "Check Duplicate Fingerprint",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, -180],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select exists(select 1 from public.signals where fingerprint = '{{$json.fingerprint_sql}}') as is_duplicate;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Already Published",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2240, -180],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Mark Duplicate",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2480, -60],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.raw_signal_messages set parse_status = 'duplicate', processed_at = now() where id = {{$('Parse AI Output').item.json.raw_message_id}} returning id;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Duplicate Skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2720, -60],
+      "parameters": {}
+    },
+    {
+      "id": "n28",
+      "name": "Publish Signal",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2480, -300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from public.ingest_classified_signal(\n  p_source_id => '{{$('Parse AI Output').item.json.source_id}}'::uuid,\n  p_raw_message_id => {{$('Parse AI Output').item.json.raw_message_id}},\n  p_category => '{{$('Parse AI Output').item.json.category}}'::public.signal_category,\n  p_symbol => '{{$('Parse AI Output').item.json.symbol_sql}}',\n  p_instrument_name => nullif('{{$('Parse AI Output').item.json.instrument_sql}}', ''),\n  p_exchange => nullif('{{$('Parse AI Output').item.json.exchange_sql}}', ''),\n  p_instrument_kind => {{ $('Parse AI Output').item.json.category === 'EQUITY' ? \"'EQUITY'\" : \"'INDEX_OPTION'\" }}::public.instrument_kind,\n  p_direction => {{ $('Parse AI Output').item.json.action ? `'${$('Parse AI Output').item.json.action}'::public.order_side` : 'null' }},\n  p_entry_price => {{ $('Parse AI Output').item.json.entry ?? 'null' }},\n  p_stop_loss => {{ $('Parse AI Output').item.json.stop_loss ?? 'null' }},\n  p_target_1 => {{ $('Parse AI Output').item.json.target_1 ?? 'null' }},\n  p_target_2 => {{ $('Parse AI Output').item.json.target_2 ?? 'null' }},\n  p_target_3 => {{ $('Parse AI Output').item.json.target_3 ?? 'null' }},\n  p_expiry => {{ $('Parse AI Output').item.json.expiry ? `'${$('Parse AI Output').item.json.expiry}'::timestamptz` : 'null' }},\n  p_timeframe => nullif('{{$('Parse AI Output').item.json.timeframe_sql}}', ''),\n  p_confidence => {{ $('Parse AI Output').item.json.confidence ?? 'null' }},\n  p_rationale => nullif('{{$('Parse AI Output').item.json.rationale_sql}}', ''),\n  p_raw_message => '{{$('Parse AI Output').item.json.raw_message_sql}}',\n  p_normalized_message => '{{$('Parse AI Output').item.json.normalized_message_sql}}',\n  p_source_message_id => nullif('{{$('Parse AI Output').item.json.source_message_id_sql}}', ''),\n  p_source_timestamp => '{{$('Parse AI Output').item.json.source_timestamp}}'::timestamptz,\n  p_fingerprint => '{{$('Parse AI Output').item.json.fingerprint_sql}}',\n  p_ai_model => 'n8n-signal-os-agent'\n);",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n29",
+      "name": "Test Mode Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2720, -300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Parse AI Output').item.json.is_test }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Test Mode Distribution Skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2960, -440],
+      "notes": "Test-mode signals are published to Supabase (so the DB/dedup/validation stages are genuinely exercised) but never sent to the real Telegram/WhatsApp channels. Each node upstream of here shows green/red in the execution view — that per-node status is the health/test result for that stage.",
+      "parameters": {}
+    },
+    {
+      "id": "n31",
+      "name": "Send To Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2960, -240],
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TRADOSPHERE_TELEGRAM_CHANNEL_ID }}",
+        "text": "={{ 'New ' + $('Parse AI Output').item.json.category + ' signal: ' + ($('Parse AI Output').item.json.symbol || '') + ($('Parse AI Output').item.json.action ? ' — ' + $('Parse AI Output').item.json.action : '') }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Signal Bot" }
+      }
+    },
+    {
+      "id": "n32",
+      "name": "Log Distribution Telegram",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3200, -240],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'telegram', '{{$json.error ? \"failed\" : \"sent\"}}', {{$json.error ? `'${String($json.error.message || $json.error).replace(/'/g, \"''\")}'` : 'null'}});",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Send To WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [2960, -100],
+      "continueOnFail": true,
+      "notes": "Verify exact parameter field names against your installed n8n version — the WhatsApp send node's schema has changed across releases. Sends to the business-managed relay for the 3 WhatsApp source groups (see Credentials Needed note).",
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $env.TRADOSPHERE_WHATSAPP_PHONE_NUMBER_ID }}",
+        "recipientPhoneNumber": "={{ $env.TRADOSPHERE_WHATSAPP_DISTRIBUTION_NUMBER }}",
+        "textBody": "={{ 'New ' + $('Parse AI Output').item.json.category + ' signal: ' + ($('Parse AI Output').item.json.symbol || '') + ($('Parse AI Output').item.json.action ? ' — ' + $('Parse AI Output').item.json.action : '') }}"
+      },
+      "credentials": {
+        "whatsAppApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere WhatsApp Business Cloud" }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Log Distribution WhatsApp",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3200, -100],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'whatsapp', '{{$json.error ? \"failed\" : \"sent\"}}', {{$json.error ? `'${String($json.error.message || $json.error).replace(/'/g, \"''\")}'` : 'null'}});",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Log Distribution Dashboard",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2960, 60],
+      "notes": "The dashboard reads signals straight from Supabase, so a successful Publish Signal IS the dashboard distribution — this just records that explicitly for the audit trail.",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'dashboard', 'sent', null);",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    },
+    {
+      "id": "n36",
+      "name": "Workflow Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [1280, 900],
+      "parameters": {}
+    },
+    {
+      "id": "n37",
+      "name": "Log Workflow Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1520, 900],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.log_workflow_error(\n  '{{ $json.workflow?.name ?? \"Tradosphere Signal OS\" }}',\n  '{{ $json.execution?.error?.lastNodeExecuted ?? \"unknown\" }}',\n  'workflow_error',\n  '{{ String($json.execution?.error?.message ?? \"Unknown error\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($json).replace(/'/g, \"''\") }}'::jsonb\n);",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Channels In": { "main": [[{ "node": "Normalize Telegram", "type": "main", "index": 0 }]] },
+    "WhatsApp Groups In": { "main": [[{ "node": "Normalize WhatsApp", "type": "main", "index": 0 }]] },
+    "SMC Poll Schedule": { "main": [[{ "node": "SMC Auto Trender API - Waiting For Access", "type": "main", "index": 0 }]] },
+    "SMC Auto Trender API - Waiting For Access": { "main": [[{ "node": "Normalize SMC API", "type": "main", "index": 0 }]] },
+    "Test Mode Trigger": { "main": [[{ "node": "Test Fixture Message", "type": "main", "index": 0 }]] },
+    "Normalize Telegram": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 0 }]] },
+    "Normalize WhatsApp": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 1 }]] },
+    "Normalize SMC API": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 2 }]] },
+    "Test Fixture Message": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 3 }]] },
+    "Merge All Sources": { "main": [[{ "node": "Insert Raw Message", "type": "main", "index": 0 }]] },
+    "Insert Raw Message": { "main": [[{ "node": "Source Registered", "type": "main", "index": 0 }]] },
+    "Source Registered": {
+      "main": [
+        [{ "node": "AI Agent Extract And Classify", "type": "main", "index": 0 }],
+        [{ "node": "Quarantine Unregistered Source", "type": "main", "index": 0 }]
+      ]
+    },
+    "Quarantine Unregistered Source": { "main": [[{ "node": "Ignored Unregistered Source", "type": "main", "index": 0 }]] },
+    "Claude Model": { "ai_languageModel": [[{ "node": "AI Agent Extract And Classify", "type": "ai_languageModel", "index": 0 }]] },
+    "Structured Output Schema": { "ai_outputParser": [[{ "node": "AI Agent Extract And Classify", "type": "ai_outputParser", "index": 0 }]] },
+    "AI Agent Extract And Classify": { "main": [[{ "node": "Parse AI Output", "type": "main", "index": 0 }]] },
+    "Parse AI Output": { "main": [[{ "node": "Validation Passed", "type": "main", "index": 0 }]] },
+    "Validation Passed": {
+      "main": [
+        [{ "node": "Check Duplicate Fingerprint", "type": "main", "index": 0 }],
+        [{ "node": "Quarantine Invalid Message", "type": "main", "index": 0 }]
+      ]
+    },
+    "Quarantine Invalid Message": { "main": [[{ "node": "Quarantined Invalid", "type": "main", "index": 0 }]] },
+    "Check Duplicate Fingerprint": { "main": [[{ "node": "Already Published", "type": "main", "index": 0 }]] },
+    "Already Published": {
+      "main": [
+        [{ "node": "Mark Duplicate", "type": "main", "index": 0 }],
+        [{ "node": "Publish Signal", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Duplicate": { "main": [[{ "node": "Duplicate Skipped", "type": "main", "index": 0 }]] },
+    "Publish Signal": { "main": [[{ "node": "Test Mode Check", "type": "main", "index": 0 }]] },
+    "Test Mode Check": {
+      "main": [
+        [{ "node": "Test Mode Distribution Skipped", "type": "main", "index": 0 }],
+        [
+          { "node": "Send To Telegram", "type": "main", "index": 0 },
+          { "node": "Send To WhatsApp", "type": "main", "index": 0 },
+          { "node": "Log Distribution Dashboard", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send To Telegram": { "main": [[{ "node": "Log Distribution Telegram", "type": "main", "index": 0 }]] },
+    "Send To WhatsApp": { "main": [[{ "node": "Log Distribution WhatsApp", "type": "main", "index": 0 }]] },
+    "Workflow Error Trigger": { "main": [[{ "node": "Log Workflow Error", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "templateCredsSetupCompleted": false }
+}

@@ -87,7 +87,7 @@ function QuoteCard({ quote }: { quote: Quote }) {
 export default async function DashboardPage() {
   const [
     { user, profile },
-    account,
+    { account, error: accountError },
     positions,
     orders,
     trades,
@@ -159,12 +159,18 @@ export default async function DashboardPage() {
 
       {!account ? (
         <EmptyState
-          title="No paper trading account found"
-          body="Your paper account should be created automatically on sign-up. If this persists, contact an admin."
+          title={
+            accountError
+              ? "Couldn't load your paper trading account"
+              : "No paper trading account found"
+          }
+          body={
+            accountError
+              ? "We hit an error checking your account rather than confirming it's missing. Try reloading; if it keeps happening, contact an admin."
+              : "Your paper account should be created automatically on sign-up. If this persists, contact an admin."
+          }
         />
-      ) : null}
-
-      {!configured ? (
+      ) : !configured ? (
         <div className="rounded-2xl border border-warn/40 bg-warn/10 p-4 text-sm text-text-muted">
           No market-data provider is configured, so live prices and
           mark-to-market figures are unavailable. An admin can connect one under{" "}
@@ -181,61 +187,74 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric
-          label="Total equity"
-          value={money(totalEquity, currency)}
-          sub="Cash + market value"
-        />
-        <Metric label="Available cash" value={money(cash, currency)} />
-        <Metric
-          label="Day P&L"
-          value={money(valuation.dayPnl, currency)}
-          valueClass={tone(valuation.dayPnl)}
-          sub="Since previous close"
-        />
-        <Metric
-          label="Open positions"
-          value={String(positions.length)}
-          sub={money(valuation.investedAtCost, currency) + " at cost"}
-        />
+      <section className="rounded-2xl border border-border bg-surface p-5">
+        <p className="text-xs text-text-faint">Total equity</p>
+        <p className="mt-1 text-3xl font-semibold tabular-nums text-text md:text-4xl">
+          {money(totalEquity, currency)}
+        </p>
+        <p className="mt-1 text-xs text-text-faint">Cash + market value</p>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric
-          label="Unrealized P&L"
-          value={money(valuation.unrealizedPnl, currency)}
-          valueClass={tone(valuation.unrealizedPnl)}
-        />
-        <Metric
-          label="Realized P&L"
-          value={trades.length === 0 ? "—" : money(stats.netPnl, currency)}
-          valueClass={tone(trades.length === 0 ? null : stats.netPnl)}
-          sub={`${stats.totalTrades} closed trades`}
-        />
-        <Metric
-          label="Win rate"
-          value={stats.winRate === null ? "—" : `${stats.winRate}%`}
-          sub={
-            stats.winRate === null
-              ? "no decided trades"
-              : `${stats.wins}W / ${stats.losses}L`
-          }
-        />
-        <Metric
-          label="Max drawdown"
-          value={
-            curve.length < 2
-              ? "—"
-              : money(-drawdown.maxDrawdown, currency)
-          }
-          valueClass={curve.length < 2 ? "text-text" : tone(-drawdown.maxDrawdown)}
-          sub={
-            curve.length < 2 || drawdown.maxDrawdownPct === null
-              ? undefined
-              : `${drawdown.maxDrawdownPct}% from peak`
-          }
-        />
+      <section>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
+          Account
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Metric label="Available cash" value={money(cash, currency)} />
+          <Metric
+            label="Day P&L"
+            value={money(valuation.dayPnl, currency)}
+            valueClass={tone(valuation.dayPnl)}
+            sub="Since previous close"
+          />
+          <Metric
+            label="Open positions"
+            value={String(positions.length)}
+            sub={money(valuation.investedAtCost, currency) + " at cost"}
+          />
+          <Metric
+            label="Unrealized P&L"
+            value={money(valuation.unrealizedPnl, currency)}
+            valueClass={tone(valuation.unrealizedPnl)}
+          />
+        </div>
+      </section>
+
+      <section>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
+          Performance
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Metric
+            label="Realized P&L"
+            value={trades.length === 0 ? "—" : money(stats.netPnl, currency)}
+            valueClass={tone(trades.length === 0 ? null : stats.netPnl)}
+            sub={`${stats.totalTrades} closed trades`}
+          />
+          <Metric
+            label="Win rate"
+            value={stats.winRate === null ? "—" : `${stats.winRate}%`}
+            sub={
+              stats.winRate === null
+                ? "no decided trades"
+                : `${stats.wins}W / ${stats.losses}L`
+            }
+          />
+          <Metric
+            label="Max drawdown"
+            value={
+              curve.length < 2
+                ? "—"
+                : money(-drawdown.maxDrawdown, currency)
+            }
+            valueClass={curve.length < 2 ? "text-text" : tone(-drawdown.maxDrawdown)}
+            sub={
+              curve.length < 2 || drawdown.maxDrawdownPct === null
+                ? undefined
+                : `${drawdown.maxDrawdownPct}% from peak`
+            }
+          />
+        </div>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -327,10 +346,10 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section>
+      <section className="border-t border-border pt-6">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-medium text-text">Watchlist</h2>
-          <Link href="/watchlist" className="text-xs text-accent">
+          <Link href="/markets" className="text-xs text-accent">
             Manage
           </Link>
         </div>
@@ -343,27 +362,6 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {watchQuotes.map((q) => (
               <QuoteCard key={q.symbol} quote={q} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-text">Live signals</h2>
-          <Link href="/signals" className="text-xs text-accent">
-            All signals
-          </Link>
-        </div>
-        {signals.length === 0 ? (
-          <EmptyState
-            title="No active signals"
-            body="Verified signals from trusted desks appear here as they are released."
-          />
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {signals.map((s) => (
-              <SignalCard key={s.id} signal={s} />
             ))}
           </div>
         )}
@@ -396,7 +394,7 @@ export default async function DashboardPage() {
               </thead>
               <tbody>
                 {recentOrders.map((o) => (
-                  <tr key={o.id} className="border-t border-border">
+                  <tr key={o.id} className="border-t border-border odd:bg-surface-raised/30">
                     <td className="py-2 text-text">{o.symbol}</td>
                     <td className={`py-2 ${o.side === "BUY" ? "text-up" : "text-down"}`}>
                       {o.side}
@@ -411,6 +409,27 @@ export default async function DashboardPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section className="border-t border-border pt-6">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-sm font-medium text-text">Live signals</h2>
+          <Link href="/signals" className="text-xs text-accent">
+            All signals
+          </Link>
+        </div>
+        {signals.length === 0 ? (
+          <EmptyState
+            title="No active signals"
+            body="Verified signals from trusted desks appear here as they are released."
+          />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {signals.map((s) => (
+              <SignalCard key={s.id} signal={s} />
+            ))}
           </div>
         )}
       </section>

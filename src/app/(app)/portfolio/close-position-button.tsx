@@ -13,7 +13,7 @@ export function ClosePositionButton({ positionId }: { positionId: string }) {
         })
       }
       disabled={pending}
-      className="rounded-lg border border-border px-2.5 py-1 text-xs text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
+      className="min-h-9 rounded-lg border border-border px-3 py-1.5 text-xs text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
     >
       {pending ? "Closing…" : "Close"}
     </button>

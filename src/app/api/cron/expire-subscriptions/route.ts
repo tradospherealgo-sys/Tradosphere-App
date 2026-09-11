@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { secretsMatch } from "@/lib/security/secrets";
 
 /**
  * Sweeps subscriptions whose billing period has elapsed and notifies the
@@ -24,7 +25,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const header = request.headers.get("authorization");
+  const presented = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!secretsMatch(presented, secret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

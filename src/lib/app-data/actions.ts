@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { dbErrorMessage } from "@/lib/errors/db-error";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -17,7 +18,12 @@ export async function markNotificationRead(id: string): Promise<ActionResult> {
     .update({ is_read: true })
     .eq("id", id)
     .eq("user_id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("markNotificationRead", error, "Could not update the notification."),
+    };
+  }
   revalidatePath("/notifications");
   return { ok: true };
 }
@@ -36,7 +42,12 @@ export async function markAllNotificationsRead(): Promise<ActionResult> {
     .update({ is_read: true })
     .eq("user_id", user.id)
     .eq("is_read", false);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("markAllNotificationsRead", error, "Could not update notifications."),
+    };
+  }
   revalidatePath("/notifications");
   return { ok: true };
 }
@@ -55,7 +66,12 @@ export async function updateProfileName(fullName: string): Promise<ActionResult>
     .from("profiles")
     .update({ full_name: trimmed })
     .eq("id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("updateProfileName", error, "Could not update your name."),
+    };
+  }
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -73,7 +89,12 @@ export async function createWatchlist(name: string): Promise<ActionResult> {
   const { error } = await supabase
     .from("watchlists")
     .insert({ user_id: user.id, name: trimmed });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("createWatchlist", error, "Could not create the watchlist."),
+    };
+  }
   revalidatePath("/markets");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -103,7 +124,7 @@ export async function addWatchlistItem(
       error:
         error.code === "23505"
           ? `${normalized} is already on this watchlist.`
-          : error.message,
+          : dbErrorMessage("addWatchlistItem", error, "Could not add that symbol."),
     };
   }
   revalidatePath("/markets");
@@ -125,7 +146,12 @@ export async function updateRiskPerTrade(pct: number): Promise<ActionResult> {
     .from("paper_accounts")
     .update({ risk_per_trade_pct: pct })
     .eq("user_id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("updateRiskPerTrade", error, "Could not update risk per trade."),
+    };
+  }
   revalidatePath("/settings");
   return { ok: true };
 }

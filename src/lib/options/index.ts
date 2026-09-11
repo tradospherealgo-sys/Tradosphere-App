@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NoneOptionChainProvider } from "./providers/none";
 import { NseUnofficialOptionChainProvider } from "./providers/nse-unofficial";
 import { SmcOptionChainProvider } from "./providers/smc";
+import { UpstoxOptionChainProvider } from "./providers/upstox";
 import type { OptionChainProvider } from "./types";
 
 export type { OptionChainProvider, OptionChainSnapshot, OptionLeg } from "./types";
@@ -33,6 +34,8 @@ export async function getActiveOptionChainProvider(): Promise<OptionChainProvide
     switch (data.provider) {
       case "smc":
         return new SmcOptionChainProvider(data.config, data.secret_env_var);
+      case "upstox":
+        return new UpstoxOptionChainProvider(data.config, data.secret_env_var);
       case "nse_unofficial":
         return new NseUnofficialOptionChainProvider();
       default:

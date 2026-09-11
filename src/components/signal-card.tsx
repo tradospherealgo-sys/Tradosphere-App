@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { SignalWithSource } from "@/lib/signals/reads";
+import { CATEGORY_LABELS, CATEGORY_STYLES, isTradeCategory } from "@/lib/signals/categories";
 
 /**
  * One published call.
@@ -34,6 +35,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function SignalCard({ signal }: { signal: SignalWithSource }) {
   const source = signal.signal_sources;
+  const tradeCategory = isTradeCategory(signal.category);
   const long = signal.direction === "BUY";
   const entry =
     signal.entry_price !== null
@@ -50,12 +52,19 @@ export function SignalCard({ signal }: { signal: SignalWithSource }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-base font-medium text-text">{signal.symbol}</span>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            long ? "bg-up/15 text-up" : "bg-down/15 text-down"
-          }`}
+          className={`rounded-full border px-2 py-0.5 text-xs ${CATEGORY_STYLES[signal.category]}`}
         >
-          {long ? "LONG" : "SHORT"}
+          {CATEGORY_LABELS[signal.category]}
         </span>
+        {signal.direction !== null && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              long ? "bg-up/15 text-up" : "bg-down/15 text-down"
+            }`}
+          >
+            {long ? "LONG" : "SHORT"}
+          </span>
+        )}
         <span className="text-xs text-text-faint">{signal.instrument_kind}</span>
         <span
           className={`ml-auto rounded-full border px-2 py-0.5 text-xs ${
@@ -66,15 +75,21 @@ export function SignalCard({ signal }: { signal: SignalWithSource }) {
         </span>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-        <Level label="Entry" value={entry} />
-        <Level label="Stop loss" value={signal.stop_loss !== null ? fmt(signal.stop_loss) : null} />
-        <Level label="Target 1" value={signal.target_1 !== null ? fmt(signal.target_1) : null} />
-        <Level
-          label="R:R"
-          value={signal.risk_reward !== null ? `${signal.risk_reward.toFixed(2)}` : null}
-        />
-      </div>
+      {tradeCategory ? (
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+          <Level label="Entry" value={entry} />
+          <Level label="Stop loss" value={signal.stop_loss !== null ? fmt(signal.stop_loss) : null} />
+          <Level label="Target 1" value={signal.target_1 !== null ? fmt(signal.target_1) : null} />
+          <Level
+            label="R:R"
+            value={signal.risk_reward !== null ? `${signal.risk_reward.toFixed(2)}` : null}
+          />
+        </div>
+      ) : (
+        signal.normalized_message && (
+          <p className="mt-3 line-clamp-2 text-sm text-text-muted">{signal.normalized_message}</p>
+        )
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-faint">
         <span className="text-text-muted">
