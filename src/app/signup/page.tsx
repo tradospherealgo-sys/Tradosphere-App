@@ -1,14 +1,29 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signUpWithPassword, type AuthActionState } from "@/lib/auth/actions";
 import { GoogleButton } from "@/components/auth/google-button";
 
 const initialState: AuthActionState = { error: null };
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const [state, formAction, pending] = useActionState(signUpWithPassword, initialState);
+  // Shared with GoogleButton below, since Google's OAuth redirect can't
+  // carry the invite code through the password-form submission alone.
+  const [inviteCode, setInviteCode] = useState("");
+  // Set when the callback route rejects a Google signup's invite code (see
+  // src/app/auth/callback/route.ts) and deletes the account it just created.
+  const oauthError = useSearchParams().get("error");
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-16">
@@ -23,7 +38,28 @@ export default function SignupPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-lg shadow-black/20">
-          <GoogleButton />
+          {oauthError && (
+            <p className="mb-4 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-xs text-down">
+              {oauthError}
+            </p>
+          )}
+          <div className="mb-5 flex flex-col gap-1.5">
+            <label htmlFor="inviteCode" className="text-xs font-medium text-text-muted">
+              Invite code
+            </label>
+            <input
+              id="inviteCode"
+              type="text"
+              required
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              autoComplete="off"
+              placeholder="Required to create an account"
+              className="rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+            />
+          </div>
+
+          <GoogleButton inviteCode={inviteCode} />
 
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
@@ -32,6 +68,7 @@ export default function SignupPage() {
           </div>
 
           <form action={formAction} className="flex flex-col gap-4">
+            <input type="hidden" name="inviteCode" value={inviteCode} />
             <div className="flex flex-col gap-1.5">
               <label htmlFor="fullName" className="text-xs font-medium text-text-muted">
                 Full name

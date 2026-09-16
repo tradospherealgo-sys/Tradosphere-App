@@ -44,6 +44,7 @@ export async function signUpWithPassword(
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
+  const inviteCode = String(formData.get("inviteCode") ?? "").trim();
 
   if (!email || !password) {
     return { error: "Email and password are required." };
@@ -54,17 +55,30 @@ export async function signUpWithPassword(
   if (password !== confirmPassword) {
     return { error: "Passwords do not match." };
   }
+  if (!inviteCode) {
+    return { error: "An invite code is required." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: fullName ? { full_name: fullName } : undefined,
+      data: {
+        ...(fullName ? { full_name: fullName } : {}),
+        invite_code: inviteCode,
+      },
     },
   });
 
   if (error) {
+    // The handle_new_user() trigger raises this exact message (see
+    // supabase/migrations/0026_invite_codes.sql) when redeem_invite_code()
+    // fails; Supabase wraps trigger exceptions in a generic "Database error
+    // saving new user", so match on our message to give a precise reason.
+    if (error.message.includes("A valid invite code is required")) {
+      return { error: "That invite code is invalid, expired, or already used." };
+    }
     return { error: error.message };
   }
 

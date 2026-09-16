@@ -79,7 +79,7 @@ export type RawMessageParseStatus =
 export type DistributionDestination = "telegram" | "whatsapp" | "dashboard";
 export type DistributionStatus = "pending" | "sent" | "failed" | "retrying";
 
-export type BillingInterval = "monthly" | "quarterly" | "yearly";
+export type BillingInterval = "monthly" | "quarterly" | "half_yearly" | "yearly";
 export type SubscriptionStatus =
   | "trialing"
   | "active"
@@ -517,6 +517,18 @@ export type IntegrationConfig = {
   updated_at: string;
 }
 
+export type InviteCode = {
+  id: string;
+  code: string;
+  note: string | null;
+  max_uses: number;
+  use_count: number;
+  is_active: boolean;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export type AuditLog = {
   id: number;
   actor_id: string | null;
@@ -808,6 +820,7 @@ export type Database = {
         "key" | "value"
       >;
       audit_logs: Table<AuditLog, "action">;
+      invite_codes: Table<InviteCode, "code">;
     };
     Views: Record<string, never>;
     Functions: {
@@ -955,6 +968,7 @@ export type Database = {
       current_entitlements: { Args: Record<string, never>; Returns: string[] };
       has_entitlement: { Args: { p_key: string }; Returns: boolean };
       can_access_course: { Args: { p_course_id: string }; Returns: boolean };
+      redeem_invite_code: { Args: { p_code: string | null }; Returns: boolean };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

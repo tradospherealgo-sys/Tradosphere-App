@@ -42,12 +42,14 @@ on conflict (key) do nothing;
 -- ----------------------------------------------------------------------------
 insert into public.plans (slug, name, description, billing_interval, price_minor, entitlements, sort_order)
 values
-  ('monthly', 'Monthly', 'Full access, billed every month.', 'monthly', 99900,
+  ('monthly', 'Monthly', 'Full access, billed every month.', 'monthly', 49900,
    '["signals","option_chain","charts","courses_premium","analytics"]'::jsonb, 1),
-  ('quarterly', 'Quarterly', 'Full access, billed every three months.', 'quarterly', 269900,
+  ('quarterly', 'Quarterly', 'Full access, billed every three months.', 'quarterly', 139900,
    '["signals","option_chain","charts","courses_premium","analytics"]'::jsonb, 2),
-  ('yearly', 'Yearly', 'Full access, billed annually.', 'yearly', 899900,
-   '["signals","option_chain","charts","courses_premium","analytics"]'::jsonb, 3)
+  ('half-yearly', 'Half-Yearly', 'Full access, billed every six months.', 'half_yearly', 259900,
+   '["signals","option_chain","charts","courses_premium","analytics"]'::jsonb, 3),
+  ('yearly', 'Yearly', 'Full access, billed annually.', 'yearly', 559900,
+   '["signals","option_chain","charts","courses_premium","analytics"]'::jsonb, 4)
 on conflict (slug) do nothing;
 
 -- ----------------------------------------------------------------------------

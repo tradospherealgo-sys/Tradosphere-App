@@ -3,19 +3,28 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function GoogleButton() {
+export function GoogleButton({ inviteCode }: { inviteCode?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
+    if (inviteCode !== undefined && !inviteCode.trim()) {
+      setError("Enter an invite code first.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const supabase = createClient();
+      // signInWithOAuth has no way to carry custom user metadata, so the
+      // invite code rides along as a callback query param instead; see
+      // src/app/auth/callback/route.ts for where it's redeemed.
+      const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+      if (inviteCode) callbackUrl.searchParams.set("invite", inviteCode.trim());
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl.toString(),
         },
       });
       if (error) {
