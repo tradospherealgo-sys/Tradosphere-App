@@ -7,6 +7,7 @@ import type { Plan } from "@/types/database";
 const INTERVAL_LABELS: Record<string, string> = {
   monthly: "per month",
   quarterly: "per quarter",
+  half_yearly: "per half-year",
   yearly: "per year",
 };
 
