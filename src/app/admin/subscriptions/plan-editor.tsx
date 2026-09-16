@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { setPlanActive, upsertPlan } from "@/lib/subscriptions/actions";
 import type { BillingInterval, Plan } from "@/types/database";
 
-const INTERVALS: BillingInterval[] = ["monthly", "quarterly", "yearly"];
+const INTERVALS: BillingInterval[] = ["monthly", "quarterly", "half_yearly", "yearly"];
 
 const input =
   "min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-text";
@@ -62,7 +62,7 @@ export function PlanEditor({ plans }: { plans: Plan[] }) {
                   {p.name}
                   <span className="ml-2 font-mono text-xs text-text-faint">{p.slug}</span>
                 </td>
-                <td className="py-2 capitalize text-text-muted">{p.billing_interval}</td>
+                <td className="py-2 text-text-muted">{p.billing_interval.replace("_", " ")}</td>
                 <td className="py-2 tabular-nums text-text-muted">
                   {(p.price_minor / 100).toFixed(2)} {p.currency}
                 </td>
@@ -76,7 +76,7 @@ export function PlanEditor({ plans }: { plans: Plan[] }) {
                   <button
                     type="button"
                     onClick={() => setEditing(p)}
-                    className="mr-3 text-xs text-accent"
+                    className="mr-3 inline-flex min-h-11 items-center text-xs text-accent"
                   >
                     Edit
                   </button>
@@ -84,7 +84,7 @@ export function PlanEditor({ plans }: { plans: Plan[] }) {
                     type="button"
                     onClick={() => toggle(p)}
                     disabled={pending}
-                    className="text-xs text-text-muted disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center text-xs text-text-muted disabled:opacity-50"
                   >
                     {p.is_active ? "Disable" : "Enable"}
                   </button>
@@ -141,7 +141,7 @@ export function PlanEditor({ plans }: { plans: Plan[] }) {
             >
               {INTERVALS.map((i) => (
                 <option key={i} value={i}>
-                  {i}
+                  {i.replace("_", " ")}
                 </option>
               ))}
             </select>

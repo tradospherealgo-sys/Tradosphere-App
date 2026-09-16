@@ -172,7 +172,7 @@ export function OrderForm({
             title={option.hint}
             onClick={() => setVariety(option.value)}
             aria-pressed={variety === option.value}
-            className={`h-9 rounded-md px-3 text-xs ${
+            className={`h-11 rounded-md px-3 text-xs ${
               variety === option.value ? "bg-accent/15 text-text" : "text-text-muted"
             }`}
           >

@@ -45,7 +45,7 @@ export function OptionChainTable({
         <button
           type="button"
           onClick={() => setCompact((value) => !value)}
-          className="h-9 rounded-full border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
+          className="h-11 rounded-full border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
         >
           {compact ? "Show all columns" : "Compact view"}
         </button>

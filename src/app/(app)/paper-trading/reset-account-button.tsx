@@ -18,7 +18,7 @@ export function ResetAccountButton() {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="h-9 rounded-lg border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
+        className="h-11 rounded-lg border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
       >
         Reset paper account
       </button>
@@ -40,7 +40,7 @@ export function ResetAccountButton() {
             else setError(res.error);
           })
         }
-        className="h-9 rounded-lg bg-down px-3 font-medium text-bg disabled:opacity-50"
+        className="h-11 rounded-lg bg-down px-3 font-medium text-bg disabled:opacity-50"
       >
         {pending ? "Resetting…" : "Confirm reset"}
       </button>
@@ -50,7 +50,7 @@ export function ResetAccountButton() {
           setConfirming(false);
           setError(null);
         }}
-        className="h-9 rounded-lg border border-border px-3 text-text-muted"
+        className="h-11 rounded-lg border border-border px-3 text-text-muted"
       >
         Cancel
       </button>

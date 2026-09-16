@@ -142,14 +142,14 @@ export function SuspendButton({ subscriptionId }: { subscriptionId: string }) {
               else setShowReason(false);
             })
           }
-          className="text-xs text-warn disabled:opacity-50"
+          className="inline-flex min-h-11 items-center text-xs text-warn disabled:opacity-50"
         >
           {pending ? "Suspending…" : "Confirm"}
         </button>
         <button
           type="button"
           onClick={() => setShowReason(false)}
-          className="text-xs text-text-faint"
+          className="inline-flex min-h-11 items-center text-xs text-text-faint"
         >
           Cancel
         </button>
@@ -162,7 +162,7 @@ export function SuspendButton({ subscriptionId }: { subscriptionId: string }) {
       <button
         type="button"
         onClick={() => setShowReason(true)}
-        className="text-xs text-warn"
+        className="inline-flex min-h-11 items-center text-xs text-warn"
       >
         Suspend
       </button>
@@ -186,7 +186,7 @@ export function UnsuspendButton({ subscriptionId }: { subscriptionId: string }) 
             if (!result.ok) setError(result.error);
           })
         }
-        className="text-xs text-up disabled:opacity-50"
+        className="inline-flex min-h-11 items-center text-xs text-up disabled:opacity-50"
       >
         {pending ? "Restoring…" : "Restore"}
       </button>

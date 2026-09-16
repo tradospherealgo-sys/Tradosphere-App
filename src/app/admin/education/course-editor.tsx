@@ -128,14 +128,18 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
               </p>
             </div>
             <div className="flex gap-3 text-xs">
-              <button type="button" onClick={() => setEditingCourse(course)} className="text-accent">
+              <button
+                type="button"
+                onClick={() => setEditingCourse(course)}
+                className="inline-flex min-h-11 items-center text-accent"
+              >
                 Edit
               </button>
               <button
                 type="button"
                 disabled={pending}
                 onClick={() => run(() => setCoursePublished(course.id, !course.is_published))}
-                className="text-text-muted disabled:opacity-50"
+                className="inline-flex min-h-11 items-center text-text-muted disabled:opacity-50"
               >
                 {course.is_published ? "Unpublish" : "Publish"}
               </button>
@@ -143,7 +147,7 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
                 type="button"
                 disabled={pending}
                 onClick={() => run(() => deleteCourse(course.id))}
-                className="text-down disabled:opacity-50"
+                className="inline-flex min-h-11 items-center text-down disabled:opacity-50"
               >
                 Delete
               </button>
@@ -159,7 +163,7 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
                     type="button"
                     disabled={pending}
                     onClick={() => run(() => deleteCourseModule(module.id))}
-                    className="text-xs text-down disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center text-xs text-down disabled:opacity-50"
                   >
                     Delete module
                   </button>
@@ -181,7 +185,7 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
                       <button
                         type="button"
                         onClick={() => setLessonTarget({ moduleId: module.id, lesson })}
-                        className="text-xs text-accent"
+                        className="inline-flex min-h-11 items-center text-xs text-accent"
                       >
                         Edit
                       </button>
@@ -189,7 +193,7 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
                         type="button"
                         disabled={pending}
                         onClick={() => run(() => deleteLesson(lesson.id))}
-                        className="text-xs text-down disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center text-xs text-down disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -203,7 +207,7 @@ export function CourseEditor({ courses }: { courses: CourseTree[] }) {
                 <button
                   type="button"
                   onClick={() => setLessonTarget({ moduleId: module.id, lesson: null })}
-                  className="mt-2 text-xs text-accent"
+                  className="mt-2 inline-flex min-h-11 items-center text-xs text-accent"
                 >
                   + Add lesson
                 </button>

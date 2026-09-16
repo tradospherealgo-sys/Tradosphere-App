@@ -10,7 +10,7 @@
       "parameters": {
         "width": 620,
         "height": 380,
-        "content": "## Tradosphere Signal OS — Master Pipeline\n\nIngestion (Telegram / WhatsApp / future API) → Normalize → Insert raw → AI Agent extraction → Deterministic validation → Fingerprint dedup → Publish to `signals` → Distribute (Telegram / WhatsApp / Dashboard), each destination logged and retried independently.\n\nThis is additive to the existing app: it does NOT touch the existing single-bot `telegram_inbox` rule-based path (src/lib/signals/ingest.ts). It writes through `raw_signal_messages`, `signals`, `distribution_logs`, `workflow_errors` from migration 0018_signal_os.sql.\n\nEvery Postgres node here calls a SECURITY DEFINER function grantted to `service_role` only — no browser role can reach these tables directly.\n\nSee the \"Credentials Needed\" note for what to configure before activating."
+        "content": "## Tradosphere Signal OS — Master Pipeline\n\nIngestion (Telegram / WhatsApp / future API) → Normalize → Insert raw → AI Agent extraction → Deterministic validation → Fingerprint dedup → Publish to `signals` → Distribute (Telegram / WhatsApp / Dashboard), each destination logged and retried independently.\n\nThis is additive to the existing app: it does NOT touch the existing single-bot `telegram_inbox` rule-based path (src/lib/signals/ingest.ts). It writes through `raw_signal_messages`, `signals`, `distribution_logs`, `workflow_errors` from migration 0019_signal_os.sql (RPC wrappers added in 0027_signal_os_rpc_wrappers.sql).\n\nEvery database-touching node here is an HTTP Request calling a Supabase REST RPC endpoint (`/rest/v1/rpc/<function>`), never a direct Postgres connection. Every one of those functions is SECURITY DEFINER, granted to `service_role` only — no browser role can reach these tables directly.\n\nSee the \"Credentials Needed\" note for what to configure before activating."
       }
     },
     {
@@ -20,9 +20,9 @@
       "typeVersion": 1,
       "position": [-680, 20],
       "parameters": {
-        "width": 620,
-        "height": 460,
-        "content": "## Credentials to create after import\n\n1. **Postgres** — \"Supabase Postgres (Tradosphere)\". Host/port/db/user/password from Supabase Project Settings → Database. Used by every DB node.\n2. **Telegram API** — bot token for the Signal OS ingestion bot (can be the same bot as the app's existing webhook bot, or a dedicated one). Add it to the 5 source channels.\n3. **WhatsApp Trigger API** + **WhatsApp API** — Meta WhatsApp Business Cloud credentials (Business Account ID, Phone Number ID, access token, webhook verify token). IMPORTANT: the official Cloud API receives messages sent to YOUR business number — it does not read arbitrary community WhatsApp groups you don't administer. The 3 \"WhatsApp source groups\" need to relay into this business number (e.g. group admin forwards, or the group is itself a WhatsApp Business-managed channel). This is a real platform constraint, not an n8n limitation.\n4. **Anthropic (or your preferred LLM provider) API key** — used by the AI Agent's language model sub-node.\n5. **SMC Auto Trender** — no credential exists. The HTTP Request node for it is disabled and its URL is a placeholder. WAITING FOR OFFICIAL SMC API ACCESS.\n\nNo credential is hard-coded in this file — every credential block below references a placeholder id that will not resolve on your instance; n8n will prompt you to bind a real credential to each node after import."
+        "width": 660,
+        "height": 520,
+        "content": "## Credentials to create after import\n\n1. **Supabase API** — \"Tradosphere Supabase\". Host = your project URL (`https://YOUR_PROJECT_REF.supabase.co`), Secret Key = the **service_role** key from Project Settings → API. Used by every database node — no Postgres connection string, port, or password needed at all; everything goes over the REST API.\n2. **Telegram API** — bot token for the Signal OS ingestion bot. IMPORTANT: use a bot token DIFFERENT from the app's existing `/api/telegram/webhook` bot — Telegram allows only one webhook per bot token, and this workflow's Telegram Trigger node registers its own. Add the bot to the 5 source channels.\n3. **WhatsApp Trigger API** + **WhatsApp API** — Meta WhatsApp Business Cloud credentials (Business Account ID, Phone Number ID, access token, webhook verify token). The official Cloud API receives messages sent to YOUR business number — it does not read arbitrary community WhatsApp groups you don't administer. The 3 \"WhatsApp source groups\" need to relay into this business number. This is a real platform constraint, not an n8n limitation. Skip this credential (and delete the WhatsApp nodes) if you're Telegram-only for now.\n4. **Groq API key** — used by the AI Agent's language model sub-node (Groq Model, model `openai/gpt-oss-120b`). Get a key at console.groq.com; no other setup needed, n8n's native Groq node handles the rest.\n5. **SMC Auto Trender** — no credential exists. The HTTP Request node for it is disabled and its URL is a placeholder. WAITING FOR OFFICIAL SMC API ACCESS.\n\n## Environment variables to set on your n8n instance\n\n- `TRADOSPHERE_SUPABASE_URL` — your project's REST base URL, e.g. `https://YOUR_PROJECT_REF.supabase.co` (used in every database node's URL field).\n- `TRADOSPHERE_TELEGRAM_CHANNEL_ID` — chat ID the distribution step posts published signals to.\n- `TRADOSPHERE_WHATSAPP_PHONE_NUMBER_ID` / `TRADOSPHERE_WHATSAPP_DISTRIBUTION_NUMBER` — only needed if using the WhatsApp distribution nodes.\n\nNo credential is hard-coded in this file — every credential block below references a placeholder id that will not resolve on your instance; n8n will prompt you to bind a real credential to each node after import."
       }
     },
     {
@@ -94,7 +94,7 @@
       "typeVersion": 2,
       "position": [80, -120],
       "parameters": {
-        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const update = item.json;\n  const msg = update.message || update.channel_post || update.edited_message;\n  if (!msg || !msg.text) continue;\n  const chatId = String(msg.chat?.id ?? '');\n  const messageId = String(msg.message_id ?? '');\n  const sender = msg.from?.username || msg.from?.first_name || null;\n  const text = msg.text || '';\n  const receivedAt = new Date((msg.date ? msg.date * 1000 : Date.now())).toISOString();\n  out.push({\n    json: {\n      channel: 'telegram',\n      external_chat_id: chatId,\n      external_chat_id_sql: esc(chatId),\n      external_message_id: messageId,\n      external_message_id_sql: esc(messageId),\n      sender,\n      sender_sql: esc(sender),\n      raw_text: text,\n      raw_text_sql: esc(text),\n      raw_payload: update,\n      raw_payload_json_sql: esc(JSON.stringify(update)),\n      received_at: receivedAt,\n      is_test: false\n    }\n  });\n}\nreturn out;"
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const update = item.json;\n  const msg = update.message || update.channel_post || update.edited_message;\n  if (!msg || !msg.text) continue;\n  const chatId = String(msg.chat?.id ?? '');\n  const messageId = String(msg.message_id ?? '');\n  const sender = msg.from?.username || msg.from?.first_name || null;\n  const text = msg.text || '';\n  const receivedAt = new Date((msg.date ? msg.date * 1000 : Date.now())).toISOString();\n  out.push({\n    json: {\n      channel: 'telegram',\n      external_chat_id: chatId,\n      external_message_id: messageId,\n      sender,\n      raw_text: text,\n      raw_payload: update,\n      received_at: receivedAt,\n      is_test: false\n    }\n  });\n}\nreturn out;"
       }
     },
     {
@@ -104,7 +104,7 @@
       "typeVersion": 2,
       "position": [80, 120],
       "parameters": {
-        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json;\n  const entries = body.entry || [];\n  for (const entry of entries) {\n    const changes = entry.changes || [];\n    for (const change of changes) {\n      const value = change.value || {};\n      const messages = value.messages || [];\n      for (const m of messages) {\n        const chatId = String(value.metadata?.phone_number_id ?? m.from ?? '');\n        const messageId = String(m.id ?? '');\n        const text = m.text?.body || m.button?.text || '';\n        if (!text) continue;\n        const receivedAt = new Date((m.timestamp ? Number(m.timestamp) * 1000 : Date.now())).toISOString();\n        out.push({\n          json: {\n            channel: 'whatsapp',\n            external_chat_id: chatId,\n            external_chat_id_sql: esc(chatId),\n            external_message_id: messageId,\n            external_message_id_sql: esc(messageId),\n            sender: m.from || null,\n            sender_sql: esc(m.from || null),\n            raw_text: text,\n            raw_text_sql: esc(text),\n            raw_payload: body,\n            raw_payload_json_sql: esc(JSON.stringify(body)),\n            received_at: receivedAt,\n            is_test: false\n          }\n        });\n      }\n    }\n  }\n}\nreturn out;"
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const body = item.json;\n  const entries = body.entry || [];\n  for (const entry of entries) {\n    const changes = entry.changes || [];\n    for (const change of changes) {\n      const value = change.value || {};\n      const messages = value.messages || [];\n      for (const m of messages) {\n        const chatId = String(value.metadata?.phone_number_id ?? m.from ?? '');\n        const messageId = String(m.id ?? '');\n        const text = m.text?.body || m.button?.text || '';\n        if (!text) continue;\n        const receivedAt = new Date((m.timestamp ? Number(m.timestamp) * 1000 : Date.now())).toISOString();\n        out.push({\n          json: {\n            channel: 'whatsapp',\n            external_chat_id: chatId,\n            external_message_id: messageId,\n            sender: m.from || null,\n            raw_text: text,\n            raw_payload: body,\n            received_at: receivedAt,\n            is_test: false\n          }\n        });\n      }\n    }\n  }\n}\nreturn out;"
       }
     },
     {
@@ -114,7 +114,7 @@
       "typeVersion": 2,
       "position": [320, 360],
       "parameters": {
-        "jsCode": "// WAITING FOR OFFICIAL SMC API ACCESS — upstream HTTP node is disabled.\n// The response shape below is a placeholder guess, not a documented\n// contract. Update once real API docs exist; keep the HTTP node disabled\n// until then.\nconst esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst out = [];\nfor (const item of $input.all()) {\n  const rows = Array.isArray(item.json) ? item.json : (item.json.data || item.json.signals || []);\n  for (const row of rows) {\n    const text = row.text || row.message || JSON.stringify(row);\n    out.push({\n      json: {\n        channel: 'api',\n        external_chat_id: 'smc_auto_trender',\n        external_chat_id_sql: 'smc_auto_trender',\n        external_message_id: String(row.id ?? ''),\n        external_message_id_sql: esc(String(row.id ?? '')),\n        sender: 'smc_auto_trender',\n        sender_sql: 'smc_auto_trender',\n        raw_text: text,\n        raw_text_sql: esc(text),\n        raw_payload: row,\n        raw_payload_json_sql: esc(JSON.stringify(row)),\n        received_at: new Date().toISOString(),\n        is_test: false\n      }\n    });\n  }\n}\nreturn out;"
+        "jsCode": "// WAITING FOR OFFICIAL SMC API ACCESS — upstream HTTP node is disabled.\n// The response shape below is a placeholder guess, not a documented\n// contract. Update once real API docs exist; keep the HTTP node disabled\n// until then.\nconst out = [];\nfor (const item of $input.all()) {\n  const rows = Array.isArray(item.json) ? item.json : (item.json.data || item.json.signals || []);\n  for (const row of rows) {\n    const text = row.text || row.message || JSON.stringify(row);\n    out.push({\n      json: {\n        channel: 'api',\n        external_chat_id: 'smc_auto_trender',\n        external_message_id: String(row.id ?? ''),\n        sender: 'smc_auto_trender',\n        raw_text: text,\n        raw_payload: row,\n        received_at: new Date().toISOString(),\n        is_test: false\n      }\n    });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -124,7 +124,7 @@
       "typeVersion": 2,
       "position": [80, 620],
       "parameters": {
-        "jsCode": "// Deterministic sample so the full pipeline can be exercised without\n// touching a real source or a real client-facing channel. \"Test Mode\n// Check\" downstream skips the real Telegram/WhatsApp sends for is_test\n// items.\n//\n// Before running: register a signal_sources row for this fixture, e.g.\n//   insert into signal_sources (slug, name, kind, telegram_chat_id, is_active)\n//   values ('test-fixture', 'Test Fixture', 'manual', 'TEST_FIXTURE', true);\nconst text = 'BUY BANKNIFTY 51000 CE above 420, SL 380, Target1 460 Target2 500. Intraday view, 30-45 min timeframe.';\nconst id = `test-${Date.now()}`;\nreturn [{\n  json: {\n    channel: 'telegram',\n    external_chat_id: 'TEST_FIXTURE',\n    external_chat_id_sql: 'TEST_FIXTURE',\n    external_message_id: id,\n    external_message_id_sql: id,\n    sender: 'test_harness',\n    sender_sql: 'test_harness',\n    raw_text: text,\n    raw_text_sql: text.replace(/'/g, \"''\"),\n    raw_payload: { source: 'test_mode_trigger' },\n    raw_payload_json_sql: JSON.stringify({ source: 'test_mode_trigger' }).replace(/'/g, \"''\"),\n    received_at: new Date().toISOString(),\n    is_test: true\n  }\n}];"
+        "jsCode": "// Deterministic sample so the full pipeline can be exercised without\n// touching a real source or a real client-facing channel. \"Test Mode\n// Check\" downstream skips the real Telegram/WhatsApp sends for is_test\n// items.\n//\n// Before running: register a signal_sources row for this fixture, e.g.\n//   insert into signal_sources (slug, name, kind, telegram_chat_id, is_active)\n//   values ('test-fixture', 'Test Fixture', 'manual', 'TEST_FIXTURE', true);\nconst text = 'BUY BANKNIFTY 51000 CE above 420, SL 380, Target1 460 Target2 500. Intraday view, 30-45 min timeframe.';\nconst id = `test-${Date.now()}`;\nreturn [{\n  json: {\n    channel: 'telegram',\n    external_chat_id: 'TEST_FIXTURE',\n    external_message_id: id,\n    sender: 'test_harness',\n    raw_text: text,\n    raw_payload: { source: 'test_mode_trigger' },\n    received_at: new Date().toISOString(),\n    is_test: true\n  }\n}];"
       }
     },
     {
@@ -141,16 +141,22 @@
     {
       "id": "n13",
       "name": "Insert Raw Message",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [800, 120],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "with src as (\n  select id from public.signal_sources\n  where (telegram_chat_id = '{{$json.external_chat_id_sql}}' or whatsapp_group_id = '{{$json.external_chat_id_sql}}')\n  limit 1\n)\ninsert into public.raw_signal_messages (source_id, channel, external_chat_id, external_message_id, sender, raw_text, raw_payload, received_at)\nselect (select id from src), '{{$json.channel}}', '{{$json.external_chat_id_sql}}', '{{$json.external_message_id_sql}}',\n       nullif('{{$json.sender_sql}}', ''), '{{$json.raw_text_sql}}', '{{$json.raw_payload_json_sql}}'::jsonb, '{{$json.received_at}}'::timestamptz\non conflict (source_id, external_message_id) where external_message_id is not null\ndo nothing\nreturning id, source_id, channel, external_message_id, raw_text, received_at, (source_id is not null) as source_found;",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/insert_raw_signal_message",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_channel: $json.channel, p_external_chat_id: $json.external_chat_id, p_external_message_id: $json.external_message_id, p_sender: $json.sender, p_raw_text: $json.raw_text, p_raw_payload: $json.raw_payload, p_received_at: $json.received_at }) }}",
         "options": {}
       },
+      "notes": "Calls public.insert_raw_signal_message (0027_signal_os_rpc_wrappers.sql). Returns 0 rows (branch stops here) on a re-delivered message, 1 row otherwise — same semantics as the raw SQL it replaced.",
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -178,16 +184,21 @@
     {
       "id": "n15",
       "name": "Quarantine Unregistered Source",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1280, 300],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from public.quarantine_raw_message({{$json.id}}, 'No registered signal source is bound to this chat/channel.');",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/quarantine_raw_message",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $json.id, p_reason: 'No registered signal source is bound to this chat/channel.' }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -215,16 +226,16 @@
     },
     {
       "id": "n18",
-      "name": "Claude Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
+      "name": "Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
       "position": [1160, 180],
       "parameters": {
-        "model": { "value": "claude-sonnet-4-5-20250929" },
-        "options": {}
+        "model": "openai/gpt-oss-120b",
+        "options": { "temperature": 0.1, "maxTokensToSample": 4096 }
       },
       "credentials": {
-        "anthropicApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere LLM Provider" }
+        "groqApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Groq" }
       }
     },
     {
@@ -246,7 +257,7 @@
       "typeVersion": 2,
       "position": [1520, -60],
       "parameters": {
-        "jsCode": "const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/'/g, \"''\");\nconst VALID_CATEGORIES = ['F&O','EQUITY','COMMODITY','IPO','SIP','MUTUAL_FUND','INVESTMENT','INSURANCE','LOAN','MARKET_UPDATE','EDUCATION','OTHER'];\nconst TRADE_CATEGORIES = ['F&O','EQUITY','COMMODITY'];\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\n\nconst out = [];\nfor (const item of $input.all()) {\n  const rm = $('Insert Raw Message').item.json;\n  const isTest = $('Merge All Sources').item.json.is_test === true;\n  const raw = item.json.output ?? item.json;\n\n  let p;\n  try {\n    p = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  } catch (e) {\n    p = { is_signal: false, category: 'OTHER', normalized_message: rm.raw_text, _parse_error: `AI output was not valid JSON: ${e.message}` };\n  }\n\n  const category = VALID_CATEGORIES.includes(p.category) ? p.category : 'OTHER';\n  const isTradeCategory = TRADE_CATEGORIES.includes(category);\n  const action = (p.action === 'BUY' || p.action === 'SELL') ? p.action : null;\n  const targets = Array.isArray(p.targets) ? p.targets.map(num).filter((v) => v !== null) : [];\n  const entry = num(p.entry);\n  const stopLoss = num(p.stop_loss);\n  const confidence = num(p.confidence);\n\n  let validationReason = null;\n  if (p._parse_error) validationReason = p._parse_error;\n  else if (p.is_signal !== true) validationReason = 'AI classified this as not a signal.';\n  else if (!p.symbol) validationReason = 'No symbol/instrument identified.';\n  else if (isTradeCategory && !action) validationReason = 'Trade category but no clear BUY/SELL action.';\n  else if (entry !== null && stopLoss !== null && entry === stopLoss) validationReason = 'Entry and stop-loss are identical.';\n  else if (confidence !== null && (confidence < 0 || confidence > 100)) validationReason = 'Confidence out of range.';\n  const valid = validationReason === null;\n\n  const today = new Date().toISOString().slice(0, 10);\n  const fingerprintSource = [category, p.symbol, action, entry, stopLoss, targets.join(',')]\n    .map((v) => (v === null || v === undefined) ? '' : String(v))\n    .join('|')\n    .toUpperCase();\n  const fingerprint = `${today}|${fingerprintSource}`;\n\n  out.push({\n    json: {\n      valid,\n      validation_reason_sql: esc(validationReason),\n      category,\n      is_trade_category: isTradeCategory,\n      instrument_sql: esc(p.instrument ?? null),\n      symbol: p.symbol ?? null,\n      symbol_sql: esc(p.symbol ?? null),\n      exchange_sql: esc(p.exchange ?? null),\n      action,\n      entry,\n      stop_loss: stopLoss,\n      target_1: targets[0] ?? null,\n      target_2: targets[1] ?? null,\n      target_3: targets[2] ?? null,\n      expiry: p.expiry ?? null,\n      timeframe_sql: esc(p.timeframe ?? null),\n      confidence,\n      rationale_sql: esc(p.rationale ?? null),\n      raw_message_sql: esc(rm.raw_text),\n      normalized_message_sql: esc(p.normalized_message ?? rm.raw_text),\n      fingerprint_sql: esc(fingerprint),\n      raw_message_id: rm.id,\n      source_id: rm.source_id,\n      channel: rm.channel,\n      source_message_id_sql: esc(rm.external_message_id),\n      source_timestamp: rm.received_at,\n      is_test: isTest\n    }\n  });\n}\nreturn out;"
+        "jsCode": "const VALID_CATEGORIES = ['F&O','EQUITY','COMMODITY','IPO','SIP','MUTUAL_FUND','INVESTMENT','INSURANCE','LOAN','MARKET_UPDATE','EDUCATION','OTHER'];\nconst TRADE_CATEGORIES = ['F&O','EQUITY','COMMODITY'];\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\n\nconst out = [];\nfor (const item of $input.all()) {\n  const rm = $('Insert Raw Message').item.json;\n  const isTest = $('Merge All Sources').item.json.is_test === true;\n  const raw = item.json.output ?? item.json;\n\n  let p;\n  try {\n    p = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  } catch (e) {\n    p = { is_signal: false, category: 'OTHER', normalized_message: rm.raw_text, _parse_error: `AI output was not valid JSON: ${e.message}` };\n  }\n\n  const category = VALID_CATEGORIES.includes(p.category) ? p.category : 'OTHER';\n  const isTradeCategory = TRADE_CATEGORIES.includes(category);\n  const action = (p.action === 'BUY' || p.action === 'SELL') ? p.action : null;\n  const targets = Array.isArray(p.targets) ? p.targets.map(num).filter((v) => v !== null) : [];\n  const entry = num(p.entry);\n  const stopLoss = num(p.stop_loss);\n  const confidence = num(p.confidence);\n\n  let validationReason = null;\n  if (p._parse_error) validationReason = p._parse_error;\n  else if (p.is_signal !== true) validationReason = 'AI classified this as not a signal.';\n  else if (!p.symbol) validationReason = 'No symbol/instrument identified.';\n  else if (isTradeCategory && !action) validationReason = 'Trade category but no clear BUY/SELL action.';\n  else if (entry !== null && stopLoss !== null && entry === stopLoss) validationReason = 'Entry and stop-loss are identical.';\n  else if (confidence !== null && (confidence < 0 || confidence > 100)) validationReason = 'Confidence out of range.';\n  const valid = validationReason === null;\n\n  const today = new Date().toISOString().slice(0, 10);\n  const fingerprintSource = [category, p.symbol, action, entry, stopLoss, targets.join(',')]\n    .map((v) => (v === null || v === undefined) ? '' : String(v))\n    .join('|')\n    .toUpperCase();\n  const fingerprint = `${today}|${fingerprintSource}`;\n\n  out.push({\n    json: {\n      valid,\n      validation_reason: validationReason,\n      category,\n      is_trade_category: isTradeCategory,\n      instrument: p.instrument ?? null,\n      symbol: p.symbol ?? null,\n      exchange: p.exchange ?? null,\n      action,\n      entry,\n      stop_loss: stopLoss,\n      target_1: targets[0] ?? null,\n      target_2: targets[1] ?? null,\n      target_3: targets[2] ?? null,\n      expiry: p.expiry ?? null,\n      timeframe: p.timeframe ?? null,\n      confidence,\n      rationale: p.rationale ?? null,\n      raw_message: rm.raw_text,\n      normalized_message: p.normalized_message ?? rm.raw_text,\n      fingerprint,\n      raw_message_id: rm.id,\n      source_id: rm.source_id,\n      channel: rm.channel,\n      source_message_id: rm.external_message_id,\n      source_timestamp: rm.received_at,\n      is_test: isTest\n    }\n  });\n}\nreturn out;"
       }
     },
     {
@@ -274,16 +285,21 @@
     {
       "id": "n22",
       "name": "Quarantine Invalid Message",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2000, 140],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from public.quarantine_raw_message({{$json.raw_message_id}}, '{{$json.validation_reason_sql}}');",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/quarantine_raw_message",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $json.raw_message_id, p_reason: $json.validation_reason }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -297,16 +313,22 @@
     {
       "id": "n24",
       "name": "Check Duplicate Fingerprint",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2000, -180],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select exists(select 1 from public.signals where fingerprint = '{{$json.fingerprint_sql}}') as is_duplicate;",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/check_signal_fingerprint_duplicate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_fingerprint: $json.fingerprint }) }}",
         "options": {}
       },
+      "notes": "Calls public.check_signal_fingerprint_duplicate (0027_signal_os_rpc_wrappers.sql), which returns table(is_duplicate boolean) — always exactly one row, so the output item's is_duplicate field is safe to read directly.",
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -334,16 +356,21 @@
     {
       "id": "n26",
       "name": "Mark Duplicate",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2480, -60],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "update public.raw_signal_messages set parse_status = 'duplicate', processed_at = now() where id = {{$('Parse AI Output').item.json.raw_message_id}} returning id;",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/mark_raw_message_duplicate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $('Parse AI Output').item.json.raw_message_id }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -357,16 +384,22 @@
     {
       "id": "n28",
       "name": "Publish Signal",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2480, -300],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from public.ingest_classified_signal(\n  p_source_id => '{{$('Parse AI Output').item.json.source_id}}'::uuid,\n  p_raw_message_id => {{$('Parse AI Output').item.json.raw_message_id}},\n  p_category => '{{$('Parse AI Output').item.json.category}}'::public.signal_category,\n  p_symbol => '{{$('Parse AI Output').item.json.symbol_sql}}',\n  p_instrument_name => nullif('{{$('Parse AI Output').item.json.instrument_sql}}', ''),\n  p_exchange => nullif('{{$('Parse AI Output').item.json.exchange_sql}}', ''),\n  p_instrument_kind => {{ $('Parse AI Output').item.json.category === 'EQUITY' ? \"'EQUITY'\" : \"'INDEX_OPTION'\" }}::public.instrument_kind,\n  p_direction => {{ $('Parse AI Output').item.json.action ? `'${$('Parse AI Output').item.json.action}'::public.order_side` : 'null' }},\n  p_entry_price => {{ $('Parse AI Output').item.json.entry ?? 'null' }},\n  p_stop_loss => {{ $('Parse AI Output').item.json.stop_loss ?? 'null' }},\n  p_target_1 => {{ $('Parse AI Output').item.json.target_1 ?? 'null' }},\n  p_target_2 => {{ $('Parse AI Output').item.json.target_2 ?? 'null' }},\n  p_target_3 => {{ $('Parse AI Output').item.json.target_3 ?? 'null' }},\n  p_expiry => {{ $('Parse AI Output').item.json.expiry ? `'${$('Parse AI Output').item.json.expiry}'::timestamptz` : 'null' }},\n  p_timeframe => nullif('{{$('Parse AI Output').item.json.timeframe_sql}}', ''),\n  p_confidence => {{ $('Parse AI Output').item.json.confidence ?? 'null' }},\n  p_rationale => nullif('{{$('Parse AI Output').item.json.rationale_sql}}', ''),\n  p_raw_message => '{{$('Parse AI Output').item.json.raw_message_sql}}',\n  p_normalized_message => '{{$('Parse AI Output').item.json.normalized_message_sql}}',\n  p_source_message_id => nullif('{{$('Parse AI Output').item.json.source_message_id_sql}}', ''),\n  p_source_timestamp => '{{$('Parse AI Output').item.json.source_timestamp}}'::timestamptz,\n  p_fingerprint => '{{$('Parse AI Output').item.json.fingerprint_sql}}',\n  p_ai_model => 'n8n-signal-os-agent'\n);",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/ingest_classified_signal",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_source_id: $('Parse AI Output').item.json.source_id, p_raw_message_id: $('Parse AI Output').item.json.raw_message_id, p_category: $('Parse AI Output').item.json.category, p_symbol: $('Parse AI Output').item.json.symbol, p_instrument_name: $('Parse AI Output').item.json.instrument || null, p_exchange: $('Parse AI Output').item.json.exchange || null, p_instrument_kind: $('Parse AI Output').item.json.category === 'EQUITY' ? 'EQUITY' : 'INDEX_OPTION', p_direction: $('Parse AI Output').item.json.action || null, p_entry_price: $('Parse AI Output').item.json.entry, p_stop_loss: $('Parse AI Output').item.json.stop_loss, p_target_1: $('Parse AI Output').item.json.target_1, p_target_2: $('Parse AI Output').item.json.target_2, p_target_3: $('Parse AI Output').item.json.target_3, p_expiry: $('Parse AI Output').item.json.expiry || null, p_timeframe: $('Parse AI Output').item.json.timeframe || null, p_confidence: $('Parse AI Output').item.json.confidence, p_rationale: $('Parse AI Output').item.json.rationale || null, p_raw_message: $('Parse AI Output').item.json.raw_message, p_normalized_message: $('Parse AI Output').item.json.normalized_message, p_source_message_id: $('Parse AI Output').item.json.source_message_id || null, p_source_timestamp: $('Parse AI Output').item.json.source_timestamp, p_fingerprint: $('Parse AI Output').item.json.fingerprint, p_ai_model: 'groq/openai-gpt-oss-120b' }) }}",
         "options": {}
       },
+      "notes": "Calls public.ingest_classified_signal (0019_signal_os.sql). It returns the full signals row as a single JSON object (not an array), so $json.id below is the new signal's id.",
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -421,16 +454,21 @@
     {
       "id": "n32",
       "name": "Log Distribution Telegram",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [3200, -240],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'telegram', '{{$json.error ? \"failed\" : \"sent\"}}', {{$json.error ? `'${String($json.error.message || $json.error).replace(/'/g, \"''\")}'` : 'null'}});",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/log_distribution",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_signal_id: $('Publish Signal').item.json.id, p_destination: 'telegram', p_status: $json.error ? 'failed' : 'sent', p_error: $json.error ? String($json.error.message || $json.error) : null }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -454,32 +492,42 @@
     {
       "id": "n34",
       "name": "Log Distribution WhatsApp",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [3200, -100],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'whatsapp', '{{$json.error ? \"failed\" : \"sent\"}}', {{$json.error ? `'${String($json.error.message || $json.error).replace(/'/g, \"''\")}'` : 'null'}});",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/log_distribution",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_signal_id: $('Publish Signal').item.json.id, p_destination: 'whatsapp', p_status: $json.error ? 'failed' : 'sent', p_error: $json.error ? String($json.error.message || $json.error) : null }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
       "id": "n35",
       "name": "Log Distribution Dashboard",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2960, 60],
       "notes": "The dashboard reads signals straight from Supabase, so a successful Publish Signal IS the dashboard distribution — this just records that explicitly for the audit trail.",
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select public.log_distribution('{{$('Publish Signal').item.json.id}}'::uuid, 'dashboard', 'sent', null);",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/log_distribution",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_signal_id: $('Publish Signal').item.json.id, p_destination: 'dashboard', p_status: 'sent', p_error: null }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     },
     {
@@ -493,16 +541,21 @@
     {
       "id": "n37",
       "name": "Log Workflow Error",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1520, 900],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select public.log_workflow_error(\n  '{{ $json.workflow?.name ?? \"Tradosphere Signal OS\" }}',\n  '{{ $json.execution?.error?.lastNodeExecuted ?? \"unknown\" }}',\n  'workflow_error',\n  '{{ String($json.execution?.error?.message ?? \"Unknown error\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($json).replace(/'/g, \"''\") }}'::jsonb\n);",
+        "method": "POST",
+        "url": "={{ $env.TRADOSPHERE_SUPABASE_URL }}/rest/v1/rpc/log_workflow_error",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_workflow_name: $json.workflow?.name ?? 'Tradosphere Signal OS', p_node_name: $json.execution?.error?.lastNodeExecuted ?? 'unknown', p_stage: 'workflow_error', p_error_message: String($json.execution?.error?.message ?? 'Unknown error'), p_payload: $json }) }}",
         "options": {}
       },
       "credentials": {
-        "postgres": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Supabase Postgres (Tradosphere)" }
+        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase" }
       }
     }
   ],
@@ -525,7 +578,7 @@
       ]
     },
     "Quarantine Unregistered Source": { "main": [[{ "node": "Ignored Unregistered Source", "type": "main", "index": 0 }]] },
-    "Claude Model": { "ai_languageModel": [[{ "node": "AI Agent Extract And Classify", "type": "ai_languageModel", "index": 0 }]] },
+    "Groq Model": { "ai_languageModel": [[{ "node": "AI Agent Extract And Classify", "type": "ai_languageModel", "index": 0 }]] },
     "Structured Output Schema": { "ai_outputParser": [[{ "node": "AI Agent Extract And Classify", "type": "ai_outputParser", "index": 0 }]] },
     "AI Agent Extract And Classify": { "main": [[{ "node": "Parse AI Output", "type": "main", "index": 0 }]] },
     "Parse AI Output": { "main": [[{ "node": "Validation Passed", "type": "main", "index": 0 }]] },

@@ -63,7 +63,7 @@ export function OrderBook({ orders }: { orders: Order[] }) {
               });
             });
           }}
-          className="h-9 rounded-full border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
+          className="h-11 rounded-full border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text disabled:opacity-50"
         >
           {pending ? "Checking…" : "Check for fills"}
         </button>
@@ -178,14 +178,14 @@ function Row({
                   triggerPrice: order.trigger_price === null ? null : toNumber(triggerPrice),
                 })
               }
-              className="h-9 rounded-md bg-accent px-3 text-xs font-medium text-bg disabled:opacity-50"
+              className="h-11 rounded-md bg-accent px-3 text-xs font-medium text-bg disabled:opacity-50"
             >
               Save
             </button>
             <button
               type="button"
               onClick={onEdit}
-              className="h-9 rounded-md border border-border px-3 text-xs text-text-muted"
+              className="h-11 rounded-md border border-border px-3 text-xs text-text-muted"
             >
               Cancel
             </button>
@@ -215,7 +215,7 @@ function Row({
           <button
             type="button"
             onClick={onEdit}
-            className="h-9 rounded-md border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
+            className="h-11 rounded-md border border-border px-3 text-xs text-text-muted hover:border-accent hover:text-text"
           >
             Modify
           </button>
@@ -223,7 +223,7 @@ function Row({
             type="button"
             disabled={pending}
             onClick={onCancel}
-            className="h-9 rounded-md border border-border px-3 text-xs text-down hover:border-down disabled:opacity-50"
+            className="h-11 rounded-md border border-border px-3 text-xs text-down hover:border-down disabled:opacity-50"
           >
             Cancel
           </button>

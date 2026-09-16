@@ -1,14 +1,17 @@
 export type NavItem = { href: string; label: string };
 
 /**
- * The four destinations pinned to the bottom bar on phones. A fifth "More"
- * slot opens the drawer holding everything else, so the bar never has to
- * shrink a touch target to fit another item.
+ * The five destinations pinned to the bottom bar on phones. A sixth "More"
+ * slot opens the drawer holding everything else. Paper Trading sits between
+ * Markets and Portfolio because it's the action a user takes on a signal or
+ * a market move, not just something they read — worth the extra column over
+ * demoting it to the drawer.
  */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/dashboard", label: "Home" },
   { href: "/signals", label: "Signals" },
   { href: "/markets", label: "Markets" },
+  { href: "/paper-trading", label: "Trade" },
   { href: "/portfolio", label: "Portfolio" },
 ];
 

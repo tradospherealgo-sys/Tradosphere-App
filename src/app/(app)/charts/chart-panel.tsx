@@ -26,6 +26,8 @@ const OVERLAY_OPTIONS: { key: IndicatorKey; label: string }[] = [
 
 const INTERVALS: CandleInterval[] = ["1m", "5m", "15m", "1h", "1d"];
 const INTRADAY: CandleInterval[] = ["1m", "5m", "15m", "1h"];
+/** Matches option-chain-panel.tsx's refresh cadence for consistency. */
+const REFRESH_OPEN_MS = 15_000;
 
 type Load =
   | { state: "loading" }
@@ -66,6 +68,7 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
   const [active, setActive] = useState<IndicatorKey[]>(["sma20"]);
   const [showRsi, setShowRsi] = useState(false);
   const [settled, setSettled] = useState<Settled | null>(null);
+  const [tick, setTick] = useState(0);
 
   // Loading is derived, not stored: a result is only current if it answers
   // the request the UI is asking for right now. That makes an in-flight
@@ -93,7 +96,19 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
       });
 
     return () => controller.abort();
-  }, [symbol, interval, requestKey]);
+    // `tick` is a deliberate dependency: incrementing it is what drives the
+    // auto-refresh, and it is otherwise unused inside the effect.
+  }, [symbol, interval, requestKey, tick]);
+
+  const isOpen = load.state === "ready" && load.status.isOpen;
+  useEffect(() => {
+    if (!isOpen) return;
+    // `window.setInterval`/`clearInterval` are explicit here because the
+    // local `interval` state's setter is itself named `setInterval`,
+    // shadowing the global timer function of the same name.
+    const timer = window.setInterval(() => setTick((value) => value + 1), REFRESH_OPEN_MS);
+    return () => window.clearInterval(timer);
+  }, [isOpen]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -129,7 +144,7 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
               type="button"
               onClick={() => setInterval(option)}
               aria-pressed={interval === option}
-              className={`h-9 rounded-md px-3 text-xs ${
+              className={`h-11 rounded-md px-3 text-xs ${
                 interval === option ? "bg-accent/15 text-text" : "text-text-muted"
               }`}
             >
@@ -146,7 +161,7 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
             type="button"
             onClick={() => toggle(option.key)}
             aria-pressed={active.includes(option.key)}
-            className={`h-9 rounded-full border px-3 text-xs ${
+            className={`h-11 rounded-full border px-3 text-xs ${
               active.includes(option.key)
                 ? "border-accent bg-accent/10 text-text"
                 : "border-border text-text-muted"
@@ -159,7 +174,7 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
           type="button"
           onClick={() => setShowRsi((value) => !value)}
           aria-pressed={showRsi}
-          className={`h-9 rounded-full border px-3 text-xs ${
+          className={`h-11 rounded-full border px-3 text-xs ${
             showRsi ? "border-accent bg-accent/10 text-text" : "border-border text-text-muted"
           }`}
         >
@@ -193,7 +208,10 @@ export function ChartPanel({ initialSymbol }: { initialSymbol: string }) {
               <span>
                 {symbol} · {interval} · {load.candles.length} bars
               </span>
-              <span>{load.status.label}</span>
+              <span>
+                {load.status.label}
+                {load.status.isOpen ? ` · auto-refreshing every ${REFRESH_OPEN_MS / 1000}s` : ""}
+              </span>
             </div>
             <PriceChart
               candles={load.candles}

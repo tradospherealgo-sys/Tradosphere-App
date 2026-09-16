@@ -11,6 +11,7 @@ import {
   LineChart,
   Menu,
   Radio,
+  TrendingUpDown,
   Users,
   Wallet,
   X,
@@ -18,7 +19,7 @@ import {
 import type { NavItem } from "@/lib/nav";
 
 /**
- * Phone navigation: a fixed bottom bar for the four most-used destinations
+ * Phone navigation: a fixed bottom bar for the five most-used destinations
  * and a drawer for the rest.
  *
  * The sidebar this replaces was `hidden … md:flex`, which left phones with
@@ -32,6 +33,7 @@ const ICONS: Record<string, typeof Home> = {
   "/dashboard": Home,
   "/signals": Radio,
   "/markets": LineChart,
+  "/paper-trading": TrendingUpDown,
   "/portfolio": Wallet,
   "/admin": LayoutGrid,
   "/admin/clients": Users,
@@ -174,7 +176,7 @@ export function MobileNav({
 
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {primary.map((item) => {
           const Icon = ICONS[item.href] ?? LayoutGrid;
