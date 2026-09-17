@@ -32,7 +32,9 @@ declare
   v_user uuid;
   v_caught boolean := false;
 begin
-  insert into auth.users(email) values ('erasure@test.invalid') returning id into v_user;
+  -- Non-'email' provider tag skips the invite-code gate in handle_new_user(),
+  -- same mechanism OAuth signups use — see 10_order_lifecycle.sql.
+  insert into auth.users(email, raw_app_meta_data) values ('erasure@test.invalid', '{"provider":"test"}') returning id into v_user;
 
   set local role authenticated;
   perform set_config('request.jwt.claims',

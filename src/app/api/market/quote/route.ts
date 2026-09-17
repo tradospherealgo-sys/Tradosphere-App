@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseSymbols, requireUser } from "@/lib/api/guard";
+import { checkRateLimit, parseSymbols, rateLimitedResponse, requireUser } from "@/lib/api/guard";
 import { getActiveMarketDataProvider, getMarketStatus } from "@/lib/market-data";
 
 /**
@@ -18,6 +18,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const gate = await requireUser();
   if ("response" in gate) return gate.response;
+
+  if (!checkRateLimit(`quote:${gate.user.id}`, 30)) {
+    return rateLimitedResponse();
+  }
 
   const url = new URL(request.url);
   const symbols = parseSymbols(url.searchParams.get("symbols"));

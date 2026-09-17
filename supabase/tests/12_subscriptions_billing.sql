@@ -61,9 +61,11 @@ begin
   -- --------------------------------------------------------------------------
   -- Fixtures.
   -- --------------------------------------------------------------------------
-  insert into auth.users(email) values ('sub-alice@test.invalid') returning id into v_alice;
-  insert into auth.users(email) values ('sub-bob@test.invalid') returning id into v_bob;
-  insert into auth.users(email) values ('sub-admin@test.invalid') returning id into v_admin;
+  -- Non-'email' provider tag skips the invite-code gate in handle_new_user(),
+  -- same mechanism OAuth signups use — see 10_order_lifecycle.sql.
+  insert into auth.users(email, raw_app_meta_data) values ('sub-alice@test.invalid', '{"provider":"test"}') returning id into v_alice;
+  insert into auth.users(email, raw_app_meta_data) values ('sub-bob@test.invalid', '{"provider":"test"}') returning id into v_bob;
+  insert into auth.users(email, raw_app_meta_data) values ('sub-admin@test.invalid', '{"provider":"test"}') returning id into v_admin;
 
   -- prevent_role_self_escalation reads auth.role() (the jwt claim), which
   -- PostgREST only sets to 'service_role' when the service-role key is used,
