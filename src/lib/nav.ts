@@ -34,3 +34,33 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/subscription", label: "Subscription" },
   { href: "/settings", label: "Profile & Settings" },
 ];
+
+/**
+ * Same 13 destinations, grouped for the desktop sidebar only. The mobile
+ * drawer keeps the flat `NAV_ITEMS` list — headers add scroll length without
+ * helping on a list this short once it's already on a phone.
+ */
+export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Overview",
+    items: NAV_ITEMS.filter((i) => ["/dashboard", "/signals"].includes(i.href)),
+  },
+  {
+    label: "Markets & Trading",
+    items: NAV_ITEMS.filter((i) =>
+      ["/markets", "/charts", "/option-chain", "/paper-trading"].includes(i.href)
+    ),
+  },
+  {
+    label: "Portfolio & Learning",
+    items: NAV_ITEMS.filter((i) =>
+      ["/portfolio", "/ai-intelligence", "/education", "/activity"].includes(i.href)
+    ),
+  },
+  {
+    label: "Account",
+    items: NAV_ITEMS.filter((i) =>
+      ["/notifications", "/subscription", "/settings"].includes(i.href)
+    ),
+  },
+];

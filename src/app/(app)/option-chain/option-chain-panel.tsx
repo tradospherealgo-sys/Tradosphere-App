@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BarChart3 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { calcGreeks, daysToExpiry } from "@/lib/options/calc";
 import type { ChainAnalysis } from "@/lib/options/analysis";
@@ -210,7 +211,7 @@ export function OptionChainPanel({ initialUnderlying }: { initialUnderlying: str
 function OiAnalysis({ analysis }: { analysis: ChainAnalysis }) {
   return (
     <section className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-text">Open interest analysis</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><BarChart3 className="size-4 text-accent" aria-hidden />Open interest analysis</h2>
       <p className="mt-1 text-xs text-text-faint">
         Derived from the OI in this snapshot. Peak-OI strikes are the
         conventional reading of writer positioning, not a forecast.

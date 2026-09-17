@@ -1,5 +1,14 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
+  ListChecks,
+  MessageSquare,
+  Pencil,
+  Radio,
+  Send,
+  Zap,
+} from "lucide-react";
+import {
   getAllSignals,
   getAllSignalSources,
   getRecentDistributionLogs,
@@ -38,7 +47,10 @@ export default async function AdminSignalsPage() {
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Signal Desk</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Radio className="size-5 text-accent" aria-hidden />
+          Signal Desk
+        </h1>
         <p className="mt-1 text-sm text-text-muted">
           Nothing reaches a client dashboard until it is verified here.
           Verifying a signal releases it to every subscriber and sends a
@@ -47,7 +59,8 @@ export default async function AdminSignalsPage() {
       </header>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <ListChecks className="size-4 text-accent" aria-hidden />
           Awaiting review {queue.length > 0 ? `(${queue.length})` : ""}
         </h2>
         {queue.length === 0 ? (
@@ -97,7 +110,10 @@ export default async function AdminSignalsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Released signals</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Send className="size-4 text-accent" aria-hidden />
+          Released signals
+        </h2>
         {released.length === 0 ? (
           <EmptyState title="No released signals yet" />
         ) : (
@@ -128,17 +144,24 @@ export default async function AdminSignalsPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-4 md:p-6">
-        <h2 className="mb-4 text-sm font-medium text-text">Enter a signal manually</h2>
+        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Pencil className="size-4 text-accent" aria-hidden />
+          Enter a signal manually
+        </h2>
         <SignalComposer sources={sources} />
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Signal sources</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Radio className="size-4 text-accent" aria-hidden />
+          Signal sources
+        </h2>
         <SourceManager sources={sources} />
       </section>
 
       <section>
-        <h2 className="mb-1 text-sm font-medium text-text">
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-medium text-text">
+          <AlertTriangle className="size-4 text-accent" aria-hidden />
           Pipeline errors {workflowErrors.length > 0 ? `(${workflowErrors.length})` : ""}
         </h2>
         <p className="mb-3 text-xs text-text-muted">
@@ -174,7 +197,10 @@ export default async function AdminSignalsPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 text-sm font-medium text-text">Distribution log</h2>
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Zap className="size-4 text-accent" aria-hidden />
+          Distribution log
+        </h2>
         <p className="mb-3 text-xs text-text-muted">
           Per-destination delivery attempts for published signals, written by
           the n8n pipeline. Read-only — a failed send is retried by the
@@ -186,7 +212,7 @@ export default async function AdminSignalsPage() {
           <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Signal</th>
                   <th className="pb-2 font-normal">Destination</th>
                   <th className="pb-2 font-normal">Status</th>
@@ -197,7 +223,7 @@ export default async function AdminSignalsPage() {
               </thead>
               <tbody>
                 {distributionLogs.map((d) => (
-                  <tr key={d.id} className="border-t border-border">
+                  <tr key={d.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                     <td className="py-2 text-text">
                       {d.signals?.symbol ?? "—"}{" "}
                       <span className="text-xs text-text-faint">{d.signals?.category}</span>
@@ -220,7 +246,10 @@ export default async function AdminSignalsPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 text-sm font-medium text-text">Telegram inbox</h2>
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-medium text-text">
+          <MessageSquare className="size-4 text-accent" aria-hidden />
+          Telegram inbox
+        </h2>
         <p className="mb-3 text-xs text-text-muted">
           Every inbound message, stored verbatim before any interpretation. A
           message the parser could not read shows here as a parse failure with
@@ -235,7 +264,7 @@ export default async function AdminSignalsPage() {
           <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="px-4 py-2 font-normal">Received</th>
                   <th className="px-4 py-2 font-normal">Chat</th>
                   <th className="px-4 py-2 font-normal">Message</th>
@@ -244,7 +273,7 @@ export default async function AdminSignalsPage() {
               </thead>
               <tbody>
                 {inbox.map((m) => (
-                  <tr key={m.id} className="border-t border-border align-top">
+                  <tr key={m.id} className="border-t border-border align-top transition-colors hover:bg-surface-raised/30">
                     <td className="px-4 py-2 text-xs text-text-faint">
                       {new Date(m.received_at).toLocaleString("en-IN")}
                     </td>

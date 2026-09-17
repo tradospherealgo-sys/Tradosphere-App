@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, History } from "lucide-react";
 import { getSignalById, getSignalEvents } from "@/lib/signals/reads";
 import { CATEGORY_LABELS, CATEGORY_STYLES, isTradeCategory } from "@/lib/signals/categories";
 
@@ -60,8 +61,12 @@ export default async function SignalDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
-      <Link href="/signals" className="text-xs text-text-muted hover:text-text">
-        ← All signals
+      <Link
+        href="/signals"
+        className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text"
+      >
+        <ArrowLeft className="size-3.5" aria-hidden />
+        All signals
       </Link>
 
       <header>
@@ -181,7 +186,10 @@ export default async function SignalDetailPage({
       )}
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Lifecycle</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <History className="size-4 text-accent" aria-hidden />
+          Lifecycle
+        </h2>
         {events.length === 0 ? (
           <p className="text-sm text-text-faint">No lifecycle events recorded yet.</p>
         ) : (

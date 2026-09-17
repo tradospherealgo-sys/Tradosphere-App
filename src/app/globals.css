@@ -1,23 +1,27 @@
 @import "tailwindcss";
 
 /*
- * "Nocturne" design tokens — ported from the Tradosphere Wealth Management
- * UI reference (Tradosphere-Wealth-Management-OS.html). Dark, premium
- * wealth-management aesthetic. This app is dark-mode only by design.
+ * "Terminal" design tokens — dark midnight/obsidian trading-terminal
+ * aesthetic: near-black navy surfaces with an emerald / cyber-teal accent.
+ * Ported from the Tradosphere visual reference. This app is dark-mode
+ * only by design.
  */
 :root {
-  --color-bg: #0d0e17;
-  --color-surface: #161826;
-  --color-surface-raised: #1d2033;
-  --color-border: #2a2d42;
-  --color-text: #e8e9f3;
-  --color-text-muted: #9497b0;
-  --color-text-faint: #6c6f87;
-  --color-accent: #9184d9;
-  --color-accent-strong: #a99cf0;
-  --color-up: #2fbf7a;
-  --color-down: #e0616b;
-  --color-warn: #e0a63f;
+  --color-bg: #060f16;
+  --color-surface: #0b1620;
+  --color-surface-raised: #101f2b;
+  --color-border: #1e323a;
+  --color-text: #eaf3f2;
+  --color-text-muted: #8ba3a8;
+  --color-text-faint: #5c747a;
+  --color-accent: #22c98a;
+  --color-accent-strong: #3fe6a8;
+  /* Deep, muted teal used behind the currently-active nav item — the
+     brand color at low intensity so it reads as "selected", not "CTA". */
+  --color-accent-muted: #123c34;
+  --color-up: #22c98a;
+  --color-down: #f0525d;
+  --color-warn: #eeab3f;
 
   --background: var(--color-bg);
   --foreground: var(--color-text);
@@ -35,6 +39,7 @@
   --color-text-faint: var(--color-text-faint);
   --color-accent: var(--color-accent);
   --color-accent-strong: var(--color-accent-strong);
+  --color-accent-muted: var(--color-accent-muted);
   --color-up: var(--color-up);
   --color-down: var(--color-down);
   --color-warn: var(--color-warn);
@@ -57,7 +62,49 @@ body {
 
 ::selection {
   background: var(--color-accent);
-  color: #0d0e17;
+  color: var(--color-bg);
+}
+
+/*
+ * Terminal surface glow.
+ *
+ * Every card/panel in the app already renders with the same two utility
+ * classes (`border border-border` + `bg-surface` / `bg-surface-raised`) —
+ * that consistency is what lets a single global rule give the whole app
+ * the "premium trading terminal" treatment (soft top highlight, subtle
+ * depth, faint accent glow on hover) without touching each page.
+ */
+.border.bg-surface,
+.border.bg-surface-raised {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 45%);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+    0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.border.bg-surface:hover,
+.border.bg-surface-raised:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+
+/* Primary (accent-filled) buttons/badges get a soft glow that echoes the
+   reference design's neon-on-obsidian call-to-actions. */
+.bg-accent {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.15) inset,
+    0 8px 22px -8px color-mix(in srgb, var(--color-accent) 65%, transparent);
+}
+
+.bg-accent:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.15) inset,
+    0 10px 28px -6px color-mix(in srgb, var(--color-accent-strong) 70%, transparent);
+}
+
+.bg-accent:disabled,
+.bg-accent[disabled] {
+  box-shadow: none;
 }
 
 /*

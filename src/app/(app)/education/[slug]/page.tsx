@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import {
   canAccessCourse,
   getCourseBySlug,
@@ -32,8 +33,9 @@ export default async function CoursePage({
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <Link href="/education" className="text-xs text-accent">
-          ← All courses
+        <Link href="/education" className="inline-flex items-center gap-1 text-xs text-accent">
+          <ArrowLeft className="size-3.5" aria-hidden />
+          All courses
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-text">{course.title}</h1>
         {course.summary ? (
@@ -88,7 +90,7 @@ export default async function CoursePage({
                       <li key={lesson.id} className="border-t border-border first:border-0">
                         <Link
                           href={`/education/${course.slug}/${lesson.slug}`}
-                          className="flex min-h-12 items-center justify-between gap-3 py-3"
+                          className="flex min-h-12 items-center justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-surface-raised/30"
                         >
                           <span className="flex-1 text-sm text-text">
                             {lesson.title}
@@ -100,11 +102,20 @@ export default async function CoursePage({
                             {lesson.minutes} min
                           </span>
                           <span
-                            className={`shrink-0 text-xs ${
+                            className={`inline-flex shrink-0 items-center gap-1 text-xs ${
                               pct >= 100 ? "text-up" : "text-text-faint"
                             }`}
                           >
-                            {pct >= 100 ? "done" : pct > 0 ? `${pct}%` : "—"}
+                            {pct >= 100 ? (
+                              <>
+                                <CheckCircle2 className="size-3.5" aria-hidden />
+                                done
+                              </>
+                            ) : pct > 0 ? (
+                              `${pct}%`
+                            ) : (
+                              "—"
+                            )}
                           </span>
                         </Link>
                       </li>

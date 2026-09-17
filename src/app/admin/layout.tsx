@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { signOut } from "@/lib/auth/actions";
 import { AdminNavLinks } from "@/components/admin-nav-links";
 import { MobileNav } from "@/components/mobile-nav";
+import { BrandMark } from "@/components/brand-mark";
 import { ADMIN_NAV_ITEMS } from "@/lib/admin/nav";
 
 // Admin data is per-request and role-gated — never statically prerendered.
@@ -52,7 +53,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen flex-1 flex-col md:flex-row">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
-        <Link href="/admin" className="mb-1 px-2 text-lg font-semibold text-text">
+        <Link href="/admin" className="mb-1 flex items-center gap-2 px-2 text-lg font-semibold text-text">
+          <BrandMark className="size-7 shrink-0" />
           Admin Control Center
         </Link>
         <Link href="/dashboard" className="mb-6 px-2 text-xs text-accent hover:underline">

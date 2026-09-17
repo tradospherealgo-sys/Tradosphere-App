@@ -1,3 +1,4 @@
+import { History, Wallet } from "lucide-react";
 import { getMyPositions, getMyTrades } from "@/lib/trading/actions";
 import { getActiveMarketDataProvider } from "@/lib/market-data";
 import { calcUnrealizedPnl } from "@/lib/trading/pnl";
@@ -21,7 +22,10 @@ export default async function PortfolioPage() {
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Portfolio</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Wallet className="size-5 text-accent" aria-hidden />
+          Portfolio
+        </h1>
         <p className="text-sm text-text-muted">
           Open positions (mark-to-market against live quotes when available)
           and closed-trade history.
@@ -36,7 +40,7 @@ export default async function PortfolioPage() {
           <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="px-4 py-2 font-normal">Symbol</th>
                   <th className="px-4 py-2 font-normal">Side</th>
                   <th className="px-4 py-2 font-normal">Qty</th>
@@ -59,7 +63,10 @@ export default async function PortfolioPage() {
                       })
                     : null;
                   return (
-                    <tr key={p.id} className="border-t border-border">
+                    <tr
+                      key={p.id}
+                      className="border-t border-border transition-colors hover:bg-surface-raised/30"
+                    >
                       <td className="px-4 py-2 text-text">{p.symbol}</td>
                       <td className={`px-4 py-2 ${p.side === "BUY" ? "text-up" : "text-down"}`}>
                         {p.side}
@@ -95,7 +102,10 @@ export default async function PortfolioPage() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-text">Trade history</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text">
+            <History className="size-4 text-accent" aria-hidden />
+            Trade history
+          </h2>
           <p className="text-sm text-text-muted">
             Realized P&L after charges:{" "}
             <span className={realizedTotal >= 0 ? "text-up" : "text-down"}>
@@ -113,7 +123,7 @@ export default async function PortfolioPage() {
           <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
             <table className="w-full min-w-[680px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="px-4 py-2 font-normal">Symbol</th>
                   <th className="px-4 py-2 font-normal">Side</th>
                   <th className="px-4 py-2 font-normal">Qty</th>
@@ -128,7 +138,10 @@ export default async function PortfolioPage() {
               </thead>
               <tbody>
                 {trades.map((t) => (
-                  <tr key={t.id} className="border-t border-border">
+                  <tr
+                    key={t.id}
+                    className="border-t border-border transition-colors hover:bg-surface-raised/30"
+                  >
                     <td className="px-4 py-2 text-text">{t.symbol}</td>
                     <td className={`px-4 py-2 ${t.side === "BUY" ? "text-up" : "text-down"}`}>
                       {t.side}

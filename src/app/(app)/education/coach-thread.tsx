@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { MessageSquare } from "lucide-react";
 import { postCoachMessage } from "@/lib/education/actions";
 
 type CoachMessage = { id: number; role: "user" | "assistant"; content: string; created_at: string };
@@ -12,7 +13,10 @@ export function CoachThread({ messages }: { messages: CoachMessage[] }) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-6">
-      <h2 className="mb-1 text-sm font-medium text-text">Coach journal</h2>
+      <h2 className="mb-1 flex items-center gap-1.5 text-sm font-medium text-text">
+        <MessageSquare className="size-4 text-accent" aria-hidden />
+        Coach journal
+      </h2>
       <p className="mb-4 text-xs text-text-faint">
         A private log of your own reflections. There is no automated AI reply
         wired up yet — this app never fabricates a coach response.

@@ -1,3 +1,4 @@
+import { Gauge, KeyRound, Plug } from "lucide-react";
 import { getIntegrationConfigs } from "@/lib/admin/reads";
 
 function EnvCheck({ label, present }: { label: string; present: boolean }) {
@@ -24,7 +25,10 @@ export default async function AdminHealthPage() {
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">System Health</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Gauge className="size-5 text-accent" aria-hidden />
+          System Health
+        </h1>
         <p className="text-sm text-text-muted">
           Presence checks only — actual secret values are never displayed
           here or anywhere in the app.
@@ -32,7 +36,10 @@ export default async function AdminHealthPage() {
       </header>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Environment</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <KeyRound className="size-4 text-accent" aria-hidden />
+          Environment
+        </h2>
         <ul className="space-y-2">
           {envChecks.map((c) => (
             <EnvCheck key={c.label} label={c.label} present={c.present} />
@@ -41,7 +48,10 @@ export default async function AdminHealthPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Integrations</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Plug className="size-4 text-accent" aria-hidden />
+          Integrations
+        </h2>
         <ul className="space-y-2">
           {configs.map((c) => {
             const result = c.last_test_result as { ok: boolean; message: string } | null;

@@ -3,20 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Bell,
-  CreditCard,
-  Home,
-  LayoutGrid,
-  LineChart,
-  Menu,
-  Radio,
-  TrendingUpDown,
-  Users,
-  Wallet,
-  X,
-} from "lucide-react";
+import { Bell, LayoutGrid, Menu, X } from "lucide-react";
 import type { NavItem } from "@/lib/nav";
+import { BrandMark } from "@/components/brand-mark";
+import { NAV_ICONS } from "@/lib/nav-icons";
 
 /**
  * Phone navigation: a fixed bottom bar for the five most-used destinations
@@ -28,18 +18,6 @@ import type { NavItem } from "@/lib/nav";
  * which matters on Android gesture navigation where the bottom edge of the
  * viewport is not reachable.
  */
-
-const ICONS: Record<string, typeof Home> = {
-  "/dashboard": Home,
-  "/signals": Radio,
-  "/markets": LineChart,
-  "/paper-trading": TrendingUpDown,
-  "/portfolio": Wallet,
-  "/admin": LayoutGrid,
-  "/admin/clients": Users,
-  "/admin/signals": Radio,
-  "/admin/subscriptions": CreditCard,
-};
 
 export function MobileNav({
   items,
@@ -105,8 +83,9 @@ export function MobileNav({
         </button>
         <Link
           href={homeHref}
-          className="flex min-h-11 items-center truncate text-base font-semibold text-text"
+          className="flex min-h-11 items-center gap-2 truncate text-base font-semibold text-text"
         >
+          <BrandMark className="size-7 shrink-0" />
           {title}
         </Link>
         {notificationsHref ? (
@@ -152,21 +131,25 @@ export function MobileNav({
             <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
               {extraLink ? <div className="mb-2">{extraLink}</div> : null}
               <ul className="flex flex-col gap-0.5">
-                {items.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      aria-current={isActive(item.href) ? "page" : undefined}
-                      className={`flex min-h-11 items-center rounded-xl px-3 text-sm ${
-                        isActive(item.href)
-                          ? "bg-surface-raised font-medium text-text"
-                          : "text-text-muted active:bg-surface-raised/60"
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
+                {items.map((item) => {
+                  const Icon = NAV_ICONS[item.href] ?? LayoutGrid;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={isActive(item.href) ? "page" : undefined}
+                        className={`flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-sm ${
+                          isActive(item.href)
+                            ? "bg-accent-muted font-medium text-accent-strong"
+                            : "text-text-muted active:bg-surface-raised/60"
+                        }`}
+                      >
+                        <Icon className="size-4 shrink-0" aria-hidden />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </nav>
             <div className="border-t border-border px-4 py-3">{footer}</div>
@@ -179,7 +162,7 @@ export function MobileNav({
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {primary.map((item) => {
-          const Icon = ICONS[item.href] ?? LayoutGrid;
+          const Icon = NAV_ICONS[item.href] ?? LayoutGrid;
           const active = isActive(item.href);
           return (
             <Link

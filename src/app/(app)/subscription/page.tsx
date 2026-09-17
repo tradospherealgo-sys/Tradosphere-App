@@ -1,3 +1,4 @@
+import { CreditCard, History, Layers, Receipt, ShieldCheck } from "lucide-react";
 import {
   getActivePlans,
   getMyEntitlements,
@@ -69,14 +70,20 @@ export default async function SubscriptionPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Subscription</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <CreditCard className="size-5 text-accent" aria-hidden />
+          Subscription
+        </h1>
         <p className="text-sm text-text-muted">
           Your plan, entitlements and billing history.
         </p>
       </header>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Current plan</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <CreditCard className="size-4 text-accent" aria-hidden />
+          Current plan
+        </h2>
         {!subscription ? (
           <EmptyState
             title="No active subscription"
@@ -119,7 +126,10 @@ export default async function SubscriptionPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Your entitlements</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <ShieldCheck className="size-4 text-accent" aria-hidden />
+          Your entitlements
+        </h2>
         {entitlements.length === 0 ? (
           <p className="text-sm text-text-muted">
             No paid entitlements are active on this account.
@@ -139,7 +149,10 @@ export default async function SubscriptionPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Available plans</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Layers className="size-4 text-accent" aria-hidden />
+          Available plans
+        </h2>
         {plans.length === 0 ? (
           <EmptyState
             title="No plans published"
@@ -151,14 +164,17 @@ export default async function SubscriptionPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Billing history</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Receipt className="size-4 text-accent" aria-hidden />
+          Billing history
+        </h2>
         {payments.length === 0 ? (
           <p className="text-sm text-text-muted">No payments recorded.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[480px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Date</th>
                   <th className="pb-2 font-normal">Amount</th>
                   <th className="pb-2 font-normal">Status</th>
@@ -167,7 +183,10 @@ export default async function SubscriptionPage() {
               </thead>
               <tbody>
                 {payments.map((p) => (
-                  <tr key={p.id} className="border-t border-border">
+                  <tr
+                    key={p.id}
+                    className="border-t border-border transition-colors hover:bg-surface-raised/30"
+                  >
                     <td className="py-2 text-text-muted">{date(p.created_at)}</td>
                     <td className="py-2 tabular-nums text-text">
                       {money(p.amount_minor, p.currency)}
@@ -188,7 +207,10 @@ export default async function SubscriptionPage() {
 
       {past.length > 0 ? (
         <section className="rounded-2xl border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-medium text-text">Past subscriptions</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+            <History className="size-4 text-accent" aria-hidden />
+            Past subscriptions
+          </h2>
           <ul className="flex flex-col gap-2 text-sm">
             {past.map((s) => (
               <li

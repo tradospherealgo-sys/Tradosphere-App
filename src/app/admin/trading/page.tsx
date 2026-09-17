@@ -1,3 +1,4 @@
+import { ListOrdered, TrendingUpDown, Wallet } from "lucide-react";
 import {
   getAllPaperAccounts,
   getOpenPositions,
@@ -39,7 +40,10 @@ export default async function AdminTradingPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Paper Trading</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <TrendingUpDown className="size-5 text-accent" aria-hidden />
+          Paper Trading
+        </h1>
         <p className="text-sm text-text-muted">
           Read-only visibility into the simulated trading engine. Every order
           here went through <code className="text-xs">place_paper_order</code>{" "}
@@ -75,14 +79,17 @@ export default async function AdminTradingPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Recent orders</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <ListOrdered className="size-4 text-accent" aria-hidden />
+          Recent orders
+        </h2>
         {orders.length === 0 ? (
           <p className="text-sm text-text-muted">No orders placed yet.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Client</th>
                   <th className="pb-2 font-normal">Symbol</th>
                   <th className="pb-2 font-normal">Side</th>
@@ -94,7 +101,7 @@ export default async function AdminTradingPage() {
               </thead>
               <tbody>
                 {orders.map((o) => (
-                  <tr key={o.id} className="border-t border-border">
+                  <tr key={o.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                     <td className="py-2 text-text">
                       {o.profiles?.full_name ?? o.profiles?.email ?? "—"}
                     </td>
@@ -124,14 +131,17 @@ export default async function AdminTradingPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Open positions</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <TrendingUpDown className="size-4 text-accent" aria-hidden />
+          Open positions
+        </h2>
         {positions.length === 0 ? (
           <p className="text-sm text-text-muted">No open positions.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Client</th>
                   <th className="pb-2 font-normal">Symbol</th>
                   <th className="pb-2 font-normal">Side</th>
@@ -142,7 +152,7 @@ export default async function AdminTradingPage() {
               </thead>
               <tbody>
                 {positions.map((p) => (
-                  <tr key={p.id} className="border-t border-border">
+                  <tr key={p.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                     <td className="py-2 text-text">
                       {p.profiles?.full_name ?? p.profiles?.email ?? "—"}
                     </td>
@@ -164,14 +174,17 @@ export default async function AdminTradingPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Account balances</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Wallet className="size-4 text-accent" aria-hidden />
+          Account balances
+        </h2>
         {accounts.length === 0 ? (
           <p className="text-sm text-text-muted">No paper accounts exist yet.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Client</th>
                   <th className="pb-2 font-normal">Starting capital</th>
                   <th className="pb-2 font-normal">Cash balance</th>
@@ -180,7 +193,7 @@ export default async function AdminTradingPage() {
               </thead>
               <tbody>
                 {accounts.map((a) => (
-                  <tr key={a.id} className="border-t border-border">
+                  <tr key={a.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                     <td className="py-2 text-text">
                       {a.profiles?.full_name ?? a.profiles?.email ?? "—"}
                     </td>

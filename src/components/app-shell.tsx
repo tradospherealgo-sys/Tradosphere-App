@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { NavLinks } from "@/components/nav-links";
 import { MobileNav } from "@/components/mobile-nav";
+import { BrandMark } from "@/components/brand-mark";
+import { MarketTicker } from "@/components/market-ticker";
 import { NAV_ITEMS, PRIMARY_NAV } from "@/lib/nav";
 import { signOut } from "@/lib/auth/actions";
 
@@ -9,17 +11,21 @@ export function AppShell({
   role,
   isAdmin,
   unreadCount,
+  tickerSymbols = [],
   children,
 }: {
   user: { email: string | null };
   role: string;
   isAdmin: boolean;
   unreadCount: number;
+  tickerSymbols?: string[];
   children: React.ReactNode;
 }) {
   const identity = (
     <>
-      <p className="truncate text-xs text-text-faint">{user.email}</p>
+      <p className="truncate text-xs text-text-faint" title={user.email ?? undefined}>
+        {user.email}
+      </p>
       <p className="text-xs text-text-faint">{role}</p>
       <form action={signOut}>
         <button
@@ -44,7 +50,8 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-1 flex-col md:flex-row">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
-        <Link href="/dashboard" className="mb-6 px-2 text-lg font-semibold text-text">
+        <Link href="/dashboard" className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold text-text">
+          <BrandMark className="size-8 shrink-0" />
           Tradosphere
         </Link>
         <NavLinks />
@@ -70,9 +77,12 @@ export function AppShell({
 
       {/* The bottom bar is fixed, so the last card on a page would sit under
           it without this padding. */}
-      <main className="min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">
-        {children}
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden pb-20 md:pb-0">
+        <div className="sticky top-14 z-20 md:top-0">
+          <MarketTicker symbols={tickerSymbols} />
+        </div>
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
     </div>
   );
 }

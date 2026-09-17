@@ -1,0 +1,55 @@
+import {
+  Activity,
+  Bell,
+  BookOpen,
+  Brain,
+  CreditCard,
+  FileClock,
+  Gauge,
+  GraduationCap,
+  Home,
+  KeyRound,
+  LayoutGrid,
+  LineChart,
+  ListChecks,
+  Radio,
+  Settings,
+  Sliders,
+  TrendingUpDown,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+
+/**
+ * Presentation-only icon lookup for nav labels — keyed by href so the same
+ * map serves the desktop sidebar, admin sidebar, and mobile drawer/bottom
+ * bar without duplicating the association three times.
+ */
+export const NAV_ICONS: Record<string, LucideIcon> = {
+  "/dashboard": Home,
+  "/signals": Radio,
+  "/markets": LineChart,
+  "/charts": Activity,
+  "/option-chain": Sliders,
+  "/paper-trading": TrendingUpDown,
+  "/portfolio": Wallet,
+  "/ai-intelligence": Brain,
+  "/education": GraduationCap,
+  "/activity": FileClock,
+  "/notifications": Bell,
+  "/subscription": CreditCard,
+  "/settings": Settings,
+  "/admin": LayoutGrid,
+  "/admin/clients": Users,
+  "/admin/integrations": Gauge,
+  "/admin/signals": Radio,
+  "/admin/trading": TrendingUpDown,
+  "/admin/subscriptions": CreditCard,
+  "/admin/invite-codes": KeyRound,
+  "/admin/education": BookOpen,
+  "/admin/notifications": Bell,
+  "/admin/settings": Settings,
+  "/admin/audit-logs": ListChecks,
+  "/admin/health": Gauge,
+};

@@ -51,7 +51,7 @@ export function InviteCodeEditor({ codes }: { codes: InviteCode[] }) {
       <div className="-mx-5 overflow-x-auto px-5">
         <table className="w-full min-w-[620px] text-sm">
           <thead>
-            <tr className="text-left text-xs text-text-faint">
+            <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
               <th className="pb-2 font-normal">Code</th>
               <th className="pb-2 font-normal">Note</th>
               <th className="pb-2 font-normal">Uses</th>
@@ -62,7 +62,7 @@ export function InviteCodeEditor({ codes }: { codes: InviteCode[] }) {
           </thead>
           <tbody>
             {codes.map((c) => (
-              <tr key={c.id} className="border-t border-border">
+              <tr key={c.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                 <td className="py-2 font-mono text-text">{c.code}</td>
                 <td className="py-2 text-xs text-text-muted">{c.note ?? "—"}</td>
                 <td className="py-2 tabular-nums text-text-muted">

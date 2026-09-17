@@ -1,3 +1,4 @@
+import { Gauge } from "lucide-react";
 import { getIntegrationConfigs } from "@/lib/admin/reads";
 import { IntegrationCard } from "./integration-card";
 
@@ -24,7 +25,10 @@ export default async function AdminIntegrationsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Integrations</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Gauge className="size-5 text-accent" aria-hidden />
+          Integrations
+        </h1>
         <p className="text-sm text-text-muted">
           These two rows drive every quote, candle, and option-chain snapshot
           in the app. Secrets are referenced by env-var name only — the

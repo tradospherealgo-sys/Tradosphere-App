@@ -1,3 +1,4 @@
+import { Bell, PenSquare } from "lucide-react";
 import { getAllNotifications } from "@/lib/admin/reads";
 import { EmptyState } from "@/components/empty-state";
 import { ComposeForm } from "./compose-form";
@@ -8,7 +9,10 @@ export default async function AdminNotificationsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Notifications</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Bell className="size-5 text-accent" aria-hidden />
+          Notifications
+        </h1>
         <p className="text-sm text-text-muted">
           Broadcasts go to every user (user_id is null); per-user notifications
           are written by backend flows (e.g. trade fills).
@@ -16,12 +20,18 @@ export default async function AdminNotificationsPage() {
       </header>
 
       <section className="rounded-2xl border border-border bg-surface p-6">
-        <h2 className="mb-4 text-sm font-medium text-text">Compose broadcast</h2>
+        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-medium text-text">
+          <PenSquare className="size-4 text-accent" aria-hidden />
+          Compose broadcast
+        </h2>
         <ComposeForm />
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Recent notifications</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Bell className="size-4 text-accent" aria-hidden />
+          Recent notifications
+        </h2>
         {notifications.length === 0 ? (
           <EmptyState title="None sent yet" />
         ) : (

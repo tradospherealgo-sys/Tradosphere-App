@@ -21,7 +21,7 @@ export function ClientRow({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <tr className="border-t border-border">
+    <tr className="border-t border-border transition-colors hover:bg-surface-raised/30">
       <td className="px-4 py-2 text-text">{fullName ?? "—"}</td>
       <td className="px-4 py-2 text-text-muted">{email}</td>
       <td className="px-4 py-2">

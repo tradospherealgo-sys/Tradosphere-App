@@ -130,6 +130,10 @@ export function OrderForm({
       onSubmit={(e) => {
         e.preventDefault();
         setMessage(null);
+        if (!Number.isFinite(quantity) || quantity < 1 || !Number.isInteger(quantity)) {
+          setMessage({ ok: false, text: "Quantity must be a whole number of at least 1." });
+          return;
+        }
         startTransition(async () => {
           const res = await placeOrder({
             symbol,
@@ -244,10 +248,18 @@ export function OrderForm({
             type="number"
             inputMode="numeric"
             min={1}
+            step={1}
+            required
+            aria-invalid={quantity < 1}
             value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-            className="mt-1 h-11 w-full rounded-lg border border-border bg-bg px-3 text-base text-text"
+            onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))}
+            className={`mt-1 h-11 w-full rounded-lg border bg-bg px-3 text-base text-text ${
+              quantity < 1 ? "border-down" : "border-border"
+            }`}
           />
+          {quantity < 1 && (
+            <p className="mt-1 text-xs text-down">Enter at least 1.</p>
+          )}
         </div>
 
         {needsLimit && (
@@ -427,7 +439,7 @@ export function OrderForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || quantity < 1}
           className="h-11 rounded-lg bg-accent px-5 text-sm font-medium text-bg hover:bg-accent-strong disabled:opacity-50"
         >
           {pending ? "Placing…" : variety === "MARKET" ? "Place order" : "Place resting order"}
