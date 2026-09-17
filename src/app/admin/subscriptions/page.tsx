@@ -1,3 +1,4 @@
+import { CreditCard, Gift, Receipt, Sliders, Users } from "lucide-react";
 import {
   getAllPayments,
   getAllPlans,
@@ -57,7 +58,10 @@ export default async function AdminSubscriptionsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Subscriptions</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <CreditCard className="size-5 text-accent" aria-hidden />
+          Subscriptions
+        </h1>
         <p className="text-sm text-text-muted">
           Plans, entitlements and access grants. Payments can only be marked
           successful by a verified gateway webhook — never from this console.
@@ -92,19 +96,25 @@ export default async function AdminSubscriptionsPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Grant access</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Gift className="size-4 text-accent" aria-hidden />
+          Grant access
+        </h2>
         <GrantForm plans={activePlans} clients={clients} />
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Subscribers</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Users className="size-4 text-accent" aria-hidden />
+          Subscribers
+        </h2>
         {subscriptions.length === 0 ? (
           <p className="text-sm text-text-muted">No subscriptions yet.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Client</th>
                   <th className="pb-2 font-normal">Plan</th>
                   <th className="pb-2 font-normal">Status</th>
@@ -120,7 +130,7 @@ export default async function AdminSubscriptionsPage() {
                     s.status === "trialing" ||
                     s.status === "past_due";
                   return (
-                    <tr key={s.id} className="border-t border-border">
+                    <tr key={s.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                       <td className="py-2 text-text">
                         {s.profiles?.full_name ?? s.profiles?.email ?? "—"}
                       </td>
@@ -154,19 +164,25 @@ export default async function AdminSubscriptionsPage() {
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Plans</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Sliders className="size-4 text-accent" aria-hidden />
+          Plans
+        </h2>
         <PlanEditor plans={plans} />
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-text">Payment ledger</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <Receipt className="size-4 text-accent" aria-hidden />
+          Payment ledger
+        </h2>
         {payments.length === 0 ? (
           <p className="text-sm text-text-muted">No payment attempts recorded.</p>
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="pb-2 font-normal">Date</th>
                   <th className="pb-2 font-normal">Amount</th>
                   <th className="pb-2 font-normal">Status</th>
@@ -176,7 +192,7 @@ export default async function AdminSubscriptionsPage() {
               </thead>
               <tbody>
                 {payments.map((p) => (
-                  <tr key={p.id} className="border-t border-border">
+                  <tr key={p.id} className="border-t border-border transition-colors hover:bg-surface-raised/30">
                     <td className="py-2 text-text-muted">{date(p.created_at)}</td>
                     <td className="py-2 tabular-nums text-text">
                       {(p.amount_minor / 100).toFixed(2)} {p.currency}

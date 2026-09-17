@@ -1,3 +1,4 @@
+import { Activity } from "lucide-react";
 import { ChartPanel } from "./chart-panel";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ export default async function ChartsPage({
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Interactive Charts</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Activity className="size-5 text-accent" aria-hidden />
+          Interactive Charts
+        </h1>
         <p className="text-sm text-text-muted">
           Real historical OHLC candles from the active market-data provider.
         </p>

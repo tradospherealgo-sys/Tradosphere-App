@@ -54,16 +54,16 @@ export function OptionChainTable({
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
-            <tr className="border-b border-border text-xs text-text-faint">
-              <th colSpan={columns} className="px-3 py-2 text-center font-normal text-up">
-                CALLS
+            <tr className="border-b border-border bg-surface-raised/40 text-xs text-text-faint">
+              <th colSpan={columns} className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-up">
+                Calls
               </th>
               <th className="px-3 py-2 text-center font-normal">Strike</th>
-              <th colSpan={columns} className="px-3 py-2 text-center font-normal text-down">
-                PUTS
+              <th colSpan={columns} className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-down">
+                Puts
               </th>
             </tr>
-            <tr className="border-b border-border text-xs text-text-faint">
+            <tr className="border-b border-border bg-surface-raised/40 text-xs text-text-faint">
               {sideHeaders(compact, "CE")}
               <th className="px-3 py-2 font-normal" />
               {sideHeaders(compact, "PE")}
@@ -74,7 +74,12 @@ export function OptionChainTable({
               const entry = byStrike.get(strike) ?? {};
               const isAtm = strike === atmStrike;
               return (
-                <tr key={strike} className={`border-t border-border ${isAtm ? "bg-accent/10" : ""}`}>
+                <tr
+                  key={strike}
+                  className={`border-t border-border transition-colors hover:bg-surface-raised/30 ${
+                    isAtm ? "bg-accent/10 hover:bg-accent/15" : ""
+                  }`}
+                >
                   {sideCells(entry.CE, compact, "CE", atmStrike, strike, maxLegOi)}
                   <td
                     className={`px-3 py-2 text-center font-medium ${

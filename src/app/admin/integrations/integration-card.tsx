@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Gauge } from "lucide-react";
 import { updateIntegrationConfig, testIntegrationConnection } from "@/lib/admin/actions";
 
 type LastTestResult = { ok: boolean; message: string; testedAt: string } | null;
@@ -75,7 +76,10 @@ export function IntegrationCard({
   return (
     <div className="rounded-2xl border border-border bg-surface p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-text">{id}</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-text">
+          <Gauge className="size-4 text-accent" aria-hidden />
+          {id}
+        </h2>
         <span className={enabled ? "text-xs text-up" : "text-xs text-text-faint"}>
           {enabled ? "enabled" : "disabled"}
         </span>

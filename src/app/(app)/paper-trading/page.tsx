@@ -1,3 +1,4 @@
+import { ClipboardList, ListOrdered, TrendingUpDown, Wallet } from "lucide-react";
 import { getMyOrders, getMyPaperAccount } from "@/lib/trading/actions";
 import { getTradableInstruments } from "@/lib/app-data/reads";
 import { EmptyState } from "@/components/empty-state";
@@ -51,16 +52,24 @@ export default async function PaperTradingPage({
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Paper Trading</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+            <TrendingUpDown className="size-5 text-accent" aria-hidden />
+            Paper Trading
+          </h1>
+          <span className="inline-flex items-center rounded-full border border-warn/40 bg-warn/10 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-warn">
+            Simulation only — no real money
+          </span>
+        </div>
         <p className="mt-1 text-sm text-text-muted">
-          Simulation only — no real money moves. Orders fill at a real,
-          live-quoted price pulled from the active market-data provider; if no
-          live quote is available the order is rejected rather than filled at a
-          guessed price.
+          Orders fill at a real, live-quoted price pulled from the active
+          market-data provider; if no live quote is available the order is
+          rejected rather than filled at a guessed price.
         </p>
         {account && (
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span className="text-text-muted">
+            <span className="inline-flex items-center gap-1.5 text-text-muted">
+              <Wallet className="size-3.5 text-text-faint" aria-hidden />
               Cash available:{" "}
               <span className="text-text">
                 {account.currency} {availableCash.toLocaleString("en-IN")}
@@ -83,7 +92,10 @@ export default async function PaperTradingPage({
       </header>
 
       <section className="rounded-2xl border border-border bg-surface p-4 md:p-6">
-        <h2 className="mb-4 text-sm font-medium text-text">Place order</h2>
+        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-medium text-text">
+          <ClipboardList className="size-4 text-accent" aria-hidden />
+          Place order
+        </h2>
         <OrderForm
           instruments={instruments}
           equity={account?.starting_capital ?? 0}
@@ -97,14 +109,17 @@ export default async function PaperTradingPage({
       <OrderBook orders={resting} />
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Order history</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <ListOrdered className="size-4 text-accent" aria-hidden />
+          Order history
+        </h2>
         {history.length === 0 ? (
           <EmptyState title="No orders yet" />
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint">
+                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
                   <th className="px-4 py-2 font-normal">Symbol</th>
                   <th className="px-4 py-2 font-normal">Type</th>
                   <th className="px-4 py-2 font-normal">Side</th>
@@ -119,7 +134,10 @@ export default async function PaperTradingPage({
               </thead>
               <tbody>
                 {history.map((o) => (
-                  <tr key={o.id} className="border-t border-border">
+                  <tr
+                    key={o.id}
+                    className="border-t border-border transition-colors hover:bg-surface-raised/30"
+                  >
                     <td className="px-4 py-2 text-text">{o.symbol}</td>
                     <td className="px-4 py-2 text-text-muted">
                       {o.variety === "SL_M" ? "SL-M" : o.variety} · {o.product}

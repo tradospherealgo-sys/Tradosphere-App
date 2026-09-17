@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Radio } from "lucide-react";
 import { getLiveSignals, getSignalHistory } from "@/lib/signals/reads";
 import { hasEntitlement } from "@/lib/subscriptions/reads";
 import { SignalCard } from "@/components/signal-card";
@@ -20,7 +21,10 @@ export default async function SignalsPage({
     return (
       <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
         <header>
-          <h1 className="text-xl font-semibold text-text">Signals</h1>
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+            <Radio className="size-5 text-accent" aria-hidden />
+            Signals
+          </h1>
         </header>
         <EntitlementGate entitlement="signals" feature="Signals">
           {null}
@@ -42,7 +46,10 @@ export default async function SignalsPage({
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Signals</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Radio className="size-5 text-accent" aria-hidden />
+          Signals
+        </h1>
         <p className="mt-1 text-sm text-text-muted">
           Calls from SMC specialists, the SMC Auto Trender and Tradosphere&rsquo;s
           own analysis layer, shown only after a desk admin has verified them
@@ -68,7 +75,10 @@ export default async function SignalsPage({
       </nav>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Live</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
+          <span className="size-1.5 animate-pulse rounded-full bg-up" aria-hidden />
+          Live
+        </h2>
         {liveFiltered.length === 0 ? (
           <EmptyState
             title="No live signals"
@@ -84,7 +94,7 @@ export default async function SignalsPage({
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-text">Closed</h2>
+        <h2 className="mb-3 text-sm font-medium text-text-muted">Closed</h2>
         {closedFiltered.length === 0 ? (
           <EmptyState title="No closed signals yet" />
         ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { updateLessonProgress } from "@/lib/education/actions";
 
 export function LessonProgressButton({
@@ -25,12 +26,13 @@ export function LessonProgressButton({
             if (!result.ok) setError(result.error);
           })
         }
-        className={`min-h-11 rounded-xl border px-5 text-sm disabled:opacity-50 ${
+        className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-5 text-sm disabled:opacity-50 ${
           done
             ? "border-up text-up"
             : "border-border text-text-muted hover:border-accent hover:text-text"
         }`}
       >
+        {done ? <CheckCircle2 className="size-4" aria-hidden /> : null}
         {done ? "Completed — mark unread" : "Mark complete"}
       </button>
       {error ? <p className="text-xs text-down">{error}</p> : null}

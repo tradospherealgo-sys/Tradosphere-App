@@ -150,21 +150,21 @@ export function buildOverlays(
   const overlays: { key: string; label: string; color: string; values: Series }[] = [];
 
   if (enabled.includes("sma20")) {
-    overlays.push({ key: "sma20", label: "SMA 20", color: "#7ba7e0", values: sma(closes, 20) });
+    overlays.push({ key: "sma20", label: "SMA 20", color: "#5fb8e0", values: sma(closes, 20) });
   }
   if (enabled.includes("sma50")) {
     overlays.push({ key: "sma50", label: "SMA 50", color: "#e0b07b", values: sma(closes, 50) });
   }
   if (enabled.includes("ema20")) {
-    overlays.push({ key: "ema20", label: "EMA 20", color: "#a99cf0", values: ema(closes, 20) });
+    overlays.push({ key: "ema20", label: "EMA 20", color: "#3fe6a8", values: ema(closes, 20) });
   }
   if (enabled.includes("vwap")) {
-    overlays.push({ key: "vwap", label: "VWAP", color: "#e0a63f", values: vwap(candles) });
+    overlays.push({ key: "vwap", label: "VWAP", color: "#eeab3f", values: vwap(candles) });
   }
   if (enabled.includes("bollinger")) {
     const bb = bollinger(closes, 20, 2);
-    overlays.push({ key: "bb_upper", label: "BB upper", color: "#6c6f87", values: bb.upper });
-    overlays.push({ key: "bb_lower", label: "BB lower", color: "#6c6f87", values: bb.lower });
+    overlays.push({ key: "bb_upper", label: "BB upper", color: "#6f8a8f", values: bb.upper });
+    overlays.push({ key: "bb_lower", label: "BB lower", color: "#6f8a8f", values: bb.lower });
   }
   return overlays;
 }

@@ -1,3 +1,4 @@
+import { Sliders } from "lucide-react";
 import { EntitlementGate } from "@/components/entitlement-gate";
 import { hasEntitlement } from "@/lib/subscriptions/reads";
 import { OptionChainPanel } from "./option-chain-panel";
@@ -16,7 +17,7 @@ export default async function OptionChainPage({
     return (
       <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
         <header>
-          <h1 className="text-xl font-semibold text-text">Option Chain</h1>
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-text"><Sliders className="size-5 text-accent" aria-hidden />Option Chain</h1>
         </header>
         <EntitlementGate entitlement="option_chain" feature="The option chain">
           {null}
@@ -31,7 +32,7 @@ export default async function OptionChainPage({
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Option Chain</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text"><Sliders className="size-5 text-accent" aria-hidden />Option Chain</h1>
         <p className="mt-1 text-sm text-text-muted">
           Live strikes, open interest and implied volatility from the active
           option-chain provider. Nothing on this page is simulated — if the

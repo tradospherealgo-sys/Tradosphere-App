@@ -72,7 +72,7 @@ export function OrderBook({ orders }: { orders: Order[] }) {
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="text-left text-xs text-text-faint">
+            <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
               <th className="px-4 py-2 font-normal">Symbol</th>
               <th className="px-4 py-2 font-normal">Type</th>
               <th className="px-4 py-2 font-normal">Side</th>
@@ -196,7 +196,7 @@ function Row({
   }
 
   return (
-    <tr className="border-t border-border">
+    <tr className="border-t border-border transition-colors hover:bg-surface-raised/30">
       <td className="px-4 py-2 text-text">{order.symbol}</td>
       <td className="px-4 py-2 text-text-muted">
         {label(order.variety)} · {order.product}

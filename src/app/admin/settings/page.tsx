@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import { getSystemSettings } from "@/lib/admin/reads";
 import { EmptyState } from "@/components/empty-state";
 import { SettingRow } from "./setting-row";
@@ -8,7 +9,10 @@ export default async function AdminSettingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">System Settings</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <Settings className="size-5 text-accent" aria-hidden />
+          System Settings
+        </h1>
         <p className="text-sm text-text-muted">
           Global config, stored as JSON values. Changes take effect immediately.
         </p>

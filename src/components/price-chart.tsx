@@ -37,11 +37,11 @@ export type PriceChartProps = {
 };
 
 const COLORS = {
-  up: "#2fbf7a",
-  down: "#e0616b",
-  grid: "#2a2d42",
-  text: "#9497b0",
-  accent: "#9184d9",
+  up: "#22c98a",
+  down: "#f0525d",
+  grid: "#1e323a",
+  text: "#8ba3a8",
+  accent: "#3fe6a8",
 };
 
 export function PriceChart({

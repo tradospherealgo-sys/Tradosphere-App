@@ -1,4 +1,15 @@
 import Link from "next/link";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  GraduationCap,
+  LineChart,
+  ListOrdered,
+  PieChart,
+  Radio,
+  Wallet,
+} from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
   getMyPaperAccount,
@@ -33,6 +44,13 @@ function money(n: number | null, currency: string): string {
   }).format(n);
 }
 
+function timeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
 function tone(n: number | null): string {
   if (n === null) return "text-text-muted";
   if (n > 0) return "text-up";
@@ -53,8 +71,8 @@ function Metric({
 }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <p className="text-xs text-text-faint">{label}</p>
-      <p className={`mt-1 text-lg font-semibold tabular-nums md:text-2xl ${valueClass}`}>
+      <p className="text-xs font-medium uppercase tracking-wide text-text-faint">{label}</p>
+      <p className={`mt-1.5 text-lg font-semibold tabular-nums md:text-2xl ${valueClass}`}>
         {value}
       </p>
       {sub ? <p className="mt-1 text-xs text-text-faint">{sub}</p> : null}
@@ -67,9 +85,19 @@ function QuoteCard({ quote }: { quote: Quote }) {
     quote.prevClose !== null ? quote.lastPrice - quote.prevClose : null;
   const changePct =
     change !== null && quote.prevClose ? (change / quote.prevClose) * 100 : null;
+  const up = change !== null && change >= 0;
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <p className="truncate text-sm font-medium text-text">{quote.symbol}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-sm font-medium text-text">{quote.symbol}</p>
+        {change !== null ? (
+          up ? (
+            <ArrowUpRight className="size-3.5 shrink-0 text-up" aria-hidden />
+          ) : (
+            <ArrowDownRight className="size-3.5 shrink-0 text-down" aria-hidden />
+          )
+        ) : null}
+      </div>
       <p className="mt-1 text-lg font-semibold tabular-nums text-text">
         {quote.lastPrice.toFixed(2)}
       </p>
@@ -81,6 +109,21 @@ function QuoteCard({ quote }: { quote: Quote }) {
             }`}
       </p>
     </div>
+  );
+}
+
+function SectionHeading({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof Wallet;
+  children: React.ReactNode;
+}) {
+  return (
+    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-faint">
+      <Icon className="size-3.5" aria-hidden />
+      {children}
+    </p>
   );
 }
 
@@ -146,14 +189,21 @@ export default async function DashboardPage() {
     .filter((q): q is Quote => q !== undefined);
 
   const recentOrders = orders.slice(0, 6);
+  // A brand-new account has nothing to report on yet. Seven metric tiles
+  // reading "—" reads as broken, not new — so a first-time visitor gets one
+  // compact prompt instead of the full grid, and the grid returns once
+  // there's a position or a closed trade to actually show.
+  const isNewUser = positions.length === 0 && trades.length === 0;
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Dashboard</h1>
+        <h1 className="text-xl font-semibold text-text">
+          Good {timeOfDay()}, {(profile?.full_name ?? user?.email ?? "Trader").split(" ")[0]}
+        </h1>
         <p className="text-sm text-text-muted">
-          {profile?.full_name ?? user?.email} — educational, simulation-only
-          account. No real money or live broker execution is involved.
+          Discipline today. Freedom tomorrow. Educational, simulation-only
+          account — no real money or live broker execution is involved.
         </p>
       </header>
 
@@ -187,80 +237,119 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-surface p-5">
-        <p className="text-xs text-text-faint">Total equity</p>
+      <section>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><LineChart className="size-4 text-accent" aria-hidden />Indices</h2>
+          <Link href="/markets" className="text-xs text-accent">
+            Live market overview
+          </Link>
+        </div>
+        {indexQuotes.length === 0 ? (
+          <EmptyState
+            title="No index quotes"
+            body="Index prices appear once a market-data provider is connected and returning data."
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {indexQuotes.map((q) => (
+              <QuoteCard key={q.symbol} quote={q} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-gradient-to-br from-surface to-surface-raised p-5">
+        <div className="flex items-center gap-2 text-xs text-text-faint">
+          <Wallet className="size-3.5" aria-hidden />
+          Total equity
+        </div>
         <p className="mt-1 text-3xl font-semibold tabular-nums text-text md:text-4xl">
           {money(totalEquity, currency)}
         </p>
         <p className="mt-1 text-xs text-text-faint">Cash + market value</p>
       </section>
 
-      <section>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
-          Account
-        </p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric label="Available cash" value={money(cash, currency)} />
-          <Metric
-            label="Day P&L"
-            value={money(valuation.dayPnl, currency)}
-            valueClass={tone(valuation.dayPnl)}
-            sub="Since previous close"
-          />
-          <Metric
-            label="Open positions"
-            value={String(positions.length)}
-            sub={money(valuation.investedAtCost, currency) + " at cost"}
-          />
-          <Metric
-            label="Unrealized P&L"
-            value={money(valuation.unrealizedPnl, currency)}
-            valueClass={tone(valuation.unrealizedPnl)}
-          />
-        </div>
-      </section>
+      {isNewUser ? (
+        <section className="rounded-2xl border border-border bg-surface p-5">
+          <SectionHeading icon={Activity}>Account &amp; performance</SectionHeading>
+          <p className="text-sm text-text-muted">
+            You have {money(cash, currency)} in cash and no open positions or
+            closed trades yet. Place your first paper order to start tracking
+            P&amp;L, win rate and drawdown here.
+          </p>
+          <Link
+            href="/paper-trading"
+            className="mt-3 inline-flex h-11 items-center rounded-lg bg-accent px-4 text-sm font-medium text-bg hover:bg-accent-strong"
+          >
+            Place your first paper trade
+          </Link>
+        </section>
+      ) : (
+        <>
+          <section>
+            <SectionHeading icon={Wallet}>Account</SectionHeading>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Metric label="Available cash" value={money(cash, currency)} />
+              <Metric
+                label="Day P&L"
+                value={money(valuation.dayPnl, currency)}
+                valueClass={tone(valuation.dayPnl)}
+                sub="Since previous close"
+              />
+              <Metric
+                label="Open positions"
+                value={String(positions.length)}
+                sub={money(valuation.investedAtCost, currency) + " at cost"}
+              />
+              <Metric
+                label="Unrealized P&L"
+                value={money(valuation.unrealizedPnl, currency)}
+                valueClass={tone(valuation.unrealizedPnl)}
+              />
+            </div>
+          </section>
 
-      <section>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
-          Performance
-        </p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <Metric
-            label="Realized P&L"
-            value={trades.length === 0 ? "—" : money(stats.netPnl, currency)}
-            valueClass={tone(trades.length === 0 ? null : stats.netPnl)}
-            sub={`${stats.totalTrades} closed trades`}
-          />
-          <Metric
-            label="Win rate"
-            value={stats.winRate === null ? "—" : `${stats.winRate}%`}
-            sub={
-              stats.winRate === null
-                ? "no decided trades"
-                : `${stats.wins}W / ${stats.losses}L`
-            }
-          />
-          <Metric
-            label="Max drawdown"
-            value={
-              curve.length < 2
-                ? "—"
-                : money(-drawdown.maxDrawdown, currency)
-            }
-            valueClass={curve.length < 2 ? "text-text" : tone(-drawdown.maxDrawdown)}
-            sub={
-              curve.length < 2 || drawdown.maxDrawdownPct === null
-                ? undefined
-                : `${drawdown.maxDrawdownPct}% from peak`
-            }
-          />
-        </div>
-      </section>
+          <section>
+            <SectionHeading icon={Activity}>Performance</SectionHeading>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <Metric
+                label="Realized P&L"
+                value={trades.length === 0 ? "—" : money(stats.netPnl, currency)}
+                valueClass={tone(trades.length === 0 ? null : stats.netPnl)}
+                sub={`${stats.totalTrades} closed trades`}
+              />
+              <Metric
+                label="Win rate"
+                value={stats.winRate === null ? "—" : `${stats.winRate}%`}
+                sub={
+                  stats.winRate === null
+                    ? "no decided trades"
+                    : `${stats.wins}W / ${stats.losses}L`
+                }
+              />
+              <Metric
+                label="Max drawdown"
+                value={
+                  curve.length < 2
+                    ? "—"
+                    : money(-drawdown.maxDrawdown, currency)
+                }
+                valueClass={curve.length < 2 ? "text-text" : tone(-drawdown.maxDrawdown)}
+                sub={
+                  curve.length < 2 || drawdown.maxDrawdownPct === null
+                    ? undefined
+                    : `${drawdown.maxDrawdownPct}% from peak`
+                }
+              />
+            </div>
+          </section>
+        </>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border border-border bg-surface p-5">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-medium text-text">Equity curve</h2>
+            <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><Activity className="size-4 text-accent" aria-hidden />Equity curve</h2>
             <span className="text-xs text-text-faint">realized only</span>
           </div>
           {curve.length < 2 ? (
@@ -296,7 +385,7 @@ export default async function DashboardPage() {
         </section>
 
         <section className="rounded-2xl border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-medium text-text">Allocation</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text"><PieChart className="size-4 text-accent" aria-hidden />Allocation</h2>
           {allocation.length === 0 ? (
             <EmptyState
               title="Nothing to allocate"
@@ -325,30 +414,9 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-text">Indices</h2>
-          <Link href="/markets" className="text-xs text-accent">
-            Live market overview
-          </Link>
-        </div>
-        {indexQuotes.length === 0 ? (
-          <EmptyState
-            title="No index quotes"
-            body="Index prices appear once a market-data provider is connected and returning data."
-          />
-        ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {indexQuotes.map((q) => (
-              <QuoteCard key={q.symbol} quote={q} />
-            ))}
-          </div>
-        )}
-      </section>
-
       <section className="border-t border-border pt-6">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-text">Watchlist</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><LineChart className="size-4 text-accent" aria-hidden />Watchlist</h2>
           <Link href="/markets" className="text-xs text-accent">
             Manage
           </Link>
@@ -369,7 +437,7 @@ export default async function DashboardPage() {
 
       <section className="rounded-2xl border border-border bg-surface p-5">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-text">Recent activity</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><ListOrdered className="size-4 text-accent" aria-hidden />Recent activity</h2>
           <Link href="/paper-trading" className="text-xs text-accent">
             Paper trading
           </Link>
@@ -415,7 +483,7 @@ export default async function DashboardPage() {
 
       <section className="border-t border-border pt-6">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-text">Live signals</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><Radio className="size-4 text-accent" aria-hidden />Live signals</h2>
           <Link href="/signals" className="text-xs text-accent">
             All signals
           </Link>
@@ -432,6 +500,29 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-gradient-to-br from-surface to-surface-raised p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-text">
+            <GraduationCap className="size-4 text-accent" aria-hidden />
+            Continue learning
+          </h2>
+          <Link href="/education" className="text-xs text-accent">
+            Education &amp; Coach
+          </Link>
+        </div>
+        <p className="mt-1 text-sm text-text-muted">
+          {isNewUser
+            ? "New here? Start with the fundamentals before placing your first paper trade."
+            : "Keep building your edge — lessons, market coaching and past sessions are all in one place."}
+        </p>
+        <Link
+          href="/education"
+          className="mt-3 inline-flex h-11 items-center rounded-lg border border-border px-4 text-sm text-text-muted hover:border-accent hover:text-text"
+        >
+          Go to Education
+        </Link>
       </section>
     </div>
   );

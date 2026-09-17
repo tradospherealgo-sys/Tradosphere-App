@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GraduationCap } from "lucide-react";
 import {
   getMyCoachMessages,
   getMyLessonProgress,
@@ -27,7 +28,10 @@ export default async function EducationPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <h1 className="text-xl font-semibold text-text">Education &amp; Coach</h1>
+        <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
+          <GraduationCap className="size-5 text-accent" aria-hidden />
+          Education &amp; Coach
+        </h1>
         <p className="text-sm text-text-muted">
           Structured courses plus a private reflection journal.
           {completed > 0
@@ -47,7 +51,7 @@ export default async function EducationPage() {
             <Link
               key={c.id}
               href={`/education/${c.slug}`}
-              className="flex flex-col rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-accent"
+              className="flex flex-col rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-accent hover:bg-surface-raised/30"
             >
               <div className="flex items-baseline justify-between gap-2">
                 <p className="font-medium text-text">{c.title}</p>

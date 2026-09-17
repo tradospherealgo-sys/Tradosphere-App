@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, ArrowRight, ExternalLink } from "lucide-react";
 import { getCourseBySlug, getLesson, getMyLessonProgress } from "@/lib/education/reads";
 import { EmptyState } from "@/components/empty-state";
 import { LessonProgressButton } from "./lesson-progress";
@@ -41,8 +42,12 @@ export default async function LessonPage({
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
       <header>
-        <Link href={`/education/${course.slug}`} className="text-xs text-accent">
-          ← {course.title}
+        <Link
+          href={`/education/${course.slug}`}
+          className="inline-flex items-center gap-1 text-xs text-accent"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          {course.title}
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-text">{lesson.title}</h1>
         <p className="mt-1 text-xs text-text-faint">
@@ -81,9 +86,10 @@ export default async function LessonPage({
             href={lesson.asset_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-6 inline-flex min-h-11 items-center rounded-xl border border-border px-5 text-sm text-accent"
+            className="mt-6 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border px-5 text-sm text-accent hover:border-accent"
           >
-            Open {KIND_LABELS[lesson.kind]?.toLowerCase() ?? "material"} ↗
+            Open {KIND_LABELS[lesson.kind]?.toLowerCase() ?? "material"}
+            <ExternalLink className="size-3.5" aria-hidden />
           </a>
         ) : null}
       </article>
@@ -94,17 +100,19 @@ export default async function LessonPage({
           {prev ? (
             <Link
               href={`/education/${course.slug}/${prev.slug}`}
-              className="flex min-h-11 items-center rounded-xl border border-border px-4 text-sm text-text-muted"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border px-4 text-sm text-text-muted hover:border-accent hover:text-text"
             >
-              ← Previous
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Previous
             </Link>
           ) : null}
           {next ? (
             <Link
               href={`/education/${course.slug}/${next.slug}`}
-              className="flex min-h-11 items-center rounded-xl border border-border px-4 text-sm text-text-muted"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border px-4 text-sm text-text-muted hover:border-accent hover:text-text"
             >
-              Next →
+              Next
+              <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           ) : null}
         </div>

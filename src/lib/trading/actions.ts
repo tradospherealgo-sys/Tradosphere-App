@@ -96,10 +96,14 @@ export async function placeOrder(params: {
   // there is nothing honest to trade at. A resting order is a promise to
   // trade later, so it can be accepted and left pending.
   if (!quote && variety === "MARKET") {
-    return {
-      ok: false,
-      error: `No live quote available for ${symbol}, so a market order cannot be filled at a real price. Configure a market-data provider in Admin → Integrations, or place a limit order instead.`,
-    };
+    // The generic "configure a provider" copy was misleading once the
+    // provider itself is up but a specific symbol has no instrument-key
+    // mapping yet — those are different problems with different fixes, and
+    // the message should point at the one that's actually true.
+    const error = provider.isConfigured()
+      ? `No live quote available for ${symbol} right now. The market-data provider is configured, but this symbol may not be mapped for live quotes yet, or the market may be closed. Place a limit order instead, or try again once the symbol is mapped.`
+      : `No live quote available for ${symbol}, so a market order cannot be filled at a real price. Configure a market-data provider in Admin → Integrations, or place a limit order instead.`;
+    return { ok: false, error };
   }
 
   const stopLoss = normalizeLevel(params.stopLoss);

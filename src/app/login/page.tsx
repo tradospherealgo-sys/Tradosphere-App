@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signInWithPassword, type AuthActionState } from "@/lib/auth/actions";
 import { GoogleButton } from "@/components/auth/google-button";
+import { BrandMark } from "@/components/brand-mark";
 
 const initialState: AuthActionState = { error: null };
 
@@ -26,6 +27,7 @@ function LoginForm() {
     <div className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
+          <BrandMark className="mx-auto mb-3 size-12" />
           <h1 className="text-2xl font-semibold tracking-tight text-text">
             Tradosphere <span className="text-accent">Wealth</span>
           </h1>
@@ -87,7 +89,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={pending}
-              className="mt-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-[#0d0e17] transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="mt-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-bg transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {pending ? "Signing in…" : "Sign in"}
             </button>

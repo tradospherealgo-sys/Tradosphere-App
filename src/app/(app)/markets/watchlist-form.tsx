@@ -9,7 +9,15 @@ type Watchlist = {
   watchlist_items: { id: string; symbol: string }[];
 };
 
-export function WatchlistForm({ watchlists }: { watchlists: Watchlist[] }) {
+type Instrument = { symbol: string; name: string | null };
+
+export function WatchlistForm({
+  watchlists,
+  instruments = [],
+}: {
+  watchlists: Watchlist[];
+  instruments?: Instrument[];
+}) {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [targetId, setTargetId] = useState(watchlists[0]?.id ?? "");
@@ -95,9 +103,18 @@ export function WatchlistForm({ watchlists }: { watchlists: Watchlist[] }) {
             <input
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
+              list="watchlist-instrument-options"
+              autoCapitalize="characters"
               className="mt-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text"
               placeholder="e.g. RELIANCE"
             />
+            <datalist id="watchlist-instrument-options">
+              {instruments.map((i) => (
+                <option key={i.symbol} value={i.symbol}>
+                  {i.name ?? i.symbol}
+                </option>
+              ))}
+            </datalist>
           </div>
           <button
             type="submit"
