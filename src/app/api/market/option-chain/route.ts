@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/api/guard";
+import { checkRateLimit, rateLimitedResponse, requireUser } from "@/lib/api/guard";
 import { getMarketStatus } from "@/lib/market-data";
 import { getActiveOptionChainProvider } from "@/lib/options";
 import { analyseChain } from "@/lib/options/analysis";
@@ -19,6 +19,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const gate = await requireUser();
   if ("response" in gate) return gate.response;
+
+  if (!checkRateLimit(`option-chain:${gate.user.id}`, 30)) {
+    return rateLimitedResponse();
+  }
 
   // RLS on option_chain_snapshots would eventually block an unentitled user,
   // but as a plain data query (not a table read) it would just come back

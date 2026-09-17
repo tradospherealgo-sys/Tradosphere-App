@@ -15,14 +15,20 @@ export async function writeAuditLog(
 ) {
   try {
     const admin = createAdminClient();
-    await admin.from("audit_logs").insert({
+    const { error } = await admin.from("audit_logs").insert({
       actor_id: actorId,
       action,
       target_table: targetTable,
       target_id: targetId ?? null,
     });
-  } catch {
-    // Audit logging must never block the underlying admin action; if the
-    // service-role client isn't configured in this environment, skip it.
+    // Audit logging must never block the underlying admin action, but a
+    // silently dropped entry (e.g. a misconfigured service-role key) should
+    // not be invisible either — surface it in server logs so it's caught by
+    // whatever aggregates console.error, not just discovered by its absence.
+    if (error) {
+      console.error("writeAuditLog failed", { action, targetTable, targetId, error });
+    }
+  } catch (error) {
+    console.error("writeAuditLog threw", { action, targetTable, targetId, error });
   }
 }

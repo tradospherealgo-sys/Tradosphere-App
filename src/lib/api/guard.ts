@@ -45,3 +45,44 @@ export function parseSymbols(raw: string | null, max = 25): string[] {
     .filter(Boolean);
   return Array.from(new Set(symbols)).slice(0, max);
 }
+
+/**
+ * Per-user, per-route sliding-window rate limit for the market-data proxy
+ * routes. State lives in module memory, so it resets on cold start and is
+ * scoped to a single serverless instance rather than global across the
+ * deployment — that makes this a courtesy backstop against one signed-in
+ * user hammering the Upstox quota from a single warm instance, not a hard
+ * distributed limit. A real multi-instance limit needs a shared store
+ * (Redis/Upstash); this is the safe, dependency-free version of the same
+ * idea, and it is strictly additive — it never widens what an authenticated
+ * user could already do.
+ */
+const RATE_LIMIT_WINDOW_MS = 10_000;
+const hits = new Map<string, number[]>();
+
+/**
+ * Returns true if `key` (e.g. `${route}:${userId}`) has made fewer than
+ * `limit` calls in the trailing window, and records this call if so.
+ */
+export function checkRateLimit(key: string, limit: number): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const recent = (hits.get(key) ?? []).filter((t) => t > windowStart);
+
+  if (recent.length >= limit) {
+    hits.set(key, recent);
+    return false;
+  }
+
+  recent.push(now);
+  hits.set(key, recent);
+  return true;
+}
+
+/** Ready-to-return 429 response for a route that has exceeded its rate limit. */
+export function rateLimitedResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Too many requests. Please slow down." },
+    { status: 429 }
+  );
+}

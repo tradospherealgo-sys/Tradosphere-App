@@ -13,10 +13,16 @@ import { secretsMatch } from "@/lib/security/secrets";
  *
  * Auth is a shared secret in the Authorization header. Without CRON_SECRET
  * set the route refuses to run rather than defaulting to open.
+ *
+ * Vercel Cron only ever issues GET requests to the configured path (it does
+ * not support POST), and automatically attaches `Authorization: Bearer
+ * <CRON_SECRET>` when that env var is set on the project — see vercel.json.
+ * POST is also exposed for manual/other-scheduler invocation with the same
+ * header. Both share one handler so the auth and RPC logic can't drift.
  */
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function handleExpireSweep(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json(
@@ -47,3 +53,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ warned: warned.data ?? 0, expired: expired.data ?? 0 });
 }
+
+export const GET = handleExpireSweep;
+export const POST = handleExpireSweep;

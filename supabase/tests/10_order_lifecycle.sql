@@ -58,8 +58,13 @@ begin
   -- --------------------------------------------------------------------------
   -- Fixtures. The handle_new_user trigger opens a paper account per user.
   -- --------------------------------------------------------------------------
-  insert into auth.users(email) values ('alice@test.invalid') returning id into v_alice;
-  insert into auth.users(email) values ('bob@test.invalid') returning id into v_bob;
+  -- Fixture users are created out-of-band from the invite-gated password
+  -- signup flow (migration 0026), so they carry a non-'email' provider tag
+  -- the same way OAuth signups do to skip the invite-code check in
+  -- handle_new_user() — this exercises the trigger's account-provisioning
+  -- side effects without needing a real invite code.
+  insert into auth.users(email, raw_app_meta_data) values ('alice@test.invalid', '{"provider":"test"}') returning id into v_alice;
+  insert into auth.users(email, raw_app_meta_data) values ('bob@test.invalid', '{"provider":"test"}') returning id into v_bob;
 
   set local role authenticated;
   perform pg_temp.become(v_alice);

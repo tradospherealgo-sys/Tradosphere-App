@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/api/guard";
+import { checkRateLimit, rateLimitedResponse, requireUser } from "@/lib/api/guard";
 import { getActiveMarketDataProvider, getMarketStatus } from "@/lib/market-data";
 import type { CandleInterval } from "@/lib/market-data";
 
@@ -36,6 +36,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function GET(request: Request) {
   const gate = await requireUser();
   if ("response" in gate) return gate.response;
+
+  if (!checkRateLimit(`candles:${gate.user.id}`, 30)) {
+    return rateLimitedResponse();
+  }
 
   const params = new URL(request.url).searchParams;
   const symbol = (params.get("symbol") ?? "").trim().toUpperCase();

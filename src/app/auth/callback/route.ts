@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeNextPath } from "@/lib/auth/sanitize-next-path";
+import { isBrandNewAccount } from "@/lib/auth/is-brand-new-account";
 
 /**
  * OAuth / magic-link callback. Supabase redirects here with a `code` query
@@ -16,18 +17,17 @@ import { sanitizeNextPath } from "@/lib/auth/sanitize-next-path";
  * validate, delete the account Supabase just created rather than leave a
  * codeless signup in place.
  */
-function isBrandNewAccount(user: { created_at: string; last_sign_in_at?: string | null }) {
-  if (!user.last_sign_in_at) return true;
-  const created = new Date(user.created_at).getTime();
-  const lastSignIn = new Date(user.last_sign_in_at).getTime();
-  return Math.abs(lastSignIn - created) < 10_000;
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const invite = searchParams.get("invite");
   const next = sanitizeNextPath(searchParams.get("next"));
+  // Present only when the OAuth attempt was launched from /signup
+  // (GoogleButton sets it — see src/components/auth/google-button.tsx), so a
+  // failure here should return the visitor to signup, not to /login.
+  const cameFromSignup = invite !== null;
+  const failureRedirect = cameFromSignup ? "/signup" : "/login";
 
   if (code) {
     const supabase = await createClient();
@@ -59,7 +59,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Google redirects here with `error`/`error_description` instead of `code`
+  // when the user cancels the consent screen — that is a normal, expected
+  // outcome (not a system failure), so it gets its own message rather than
+  // the generic one used for an actual token-exchange failure.
+  const providerError = searchParams.get("error");
+  const message =
+    providerError === "access_denied"
+      ? "Google sign-in was cancelled."
+      : "Could not sign you in. Please try again.";
+
   return NextResponse.redirect(
-    `${origin}/login?error=${encodeURIComponent("Could not sign you in. Please try again.")}`
+    `${origin}${failureRedirect}?error=${encodeURIComponent(message)}`
   );
 }
