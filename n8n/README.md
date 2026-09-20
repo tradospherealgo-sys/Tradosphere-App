@@ -15,7 +15,9 @@ Self-hosted (Railway, Render, a VPS, Docker) — pick one and get it running wit
 
 In n8n: **Workflows → Import from File** → select `n8n/tradosphere-signal-os-master.json`. All 37 nodes should appear; none will be green yet because credentials aren't bound.
 
-## 3. Set environment variables on the n8n instance
+## 3. Set n8n Variables (Settings → Variables — NOT instance environment variables)
+
+Node expressions in this workflow use `$vars.*`, never `$env.*`. n8n blocks node-level access to OS environment variables by default (`N8N_BLOCK_ENV_ACCESS_IN_NODE=true`) for security, and that setting should stay on rather than be disabled to work around this — `$vars` is n8n's own DB-backed config store made for exactly this, reachable from node expressions without that restriction applying. Go to **Settings → Variables** in the n8n UI and create:
 
 | Variable | Value |
 |---|---|
