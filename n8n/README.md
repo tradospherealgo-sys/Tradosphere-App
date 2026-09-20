@@ -13,18 +13,18 @@ Self-hosted (Railway, Render, a VPS, Docker) — pick one and get it running wit
 
 ## 2. Import the workflow
 
-In n8n: **Workflows → Import from File** → select `n8n/tradosphere-signal-os-master.json`. All 37 nodes should appear; none will be green yet because credentials aren't bound.
+In n8n: **Workflows → Import from File** → select `n8n/tradosphere-signal-os-master.json`. All 39 nodes should appear; none will be green yet because credentials aren't bound.
 
-## 3. Set n8n Variables (Settings → Variables — NOT instance environment variables)
+## 3. Fill in the "Workflow Config" node (not Settings → Variables)
 
-Node expressions in this workflow use `$vars.*`, never `$env.*`. n8n blocks node-level access to OS environment variables by default (`N8N_BLOCK_ENV_ACCESS_IN_NODE=true`) for security, and that setting should stay on rather than be disabled to work around this — `$vars` is n8n's own DB-backed config store made for exactly this, reachable from node expressions without that restriction applying. Go to **Settings → Variables** in the n8n UI and create:
+Settings → Variables/Environments is an Enterprise-only feature on many self-hosted n8n instances, and node expressions can't read `$env`/`process.env` by default (`N8N_BLOCK_ENV_ACCESS_IN_NODE=true`) — that setting should stay on rather than be disabled. Neither is needed: none of these 4 values are secrets (the real secret, the `service_role` key, only ever lives in the Supabase credential in step 4). They're plain fields on the **"Workflow Config"** node, sitting right after "Merge All Sources" in the canvas. Open it and set:
 
-| Variable | Value |
+| Field | Value |
 |---|---|
-| `TRADOSPHERE_SUPABASE_URL` | `https://bcjgfdwjmhfgkqglcasu.supabase.co` |
-| `TRADOSPHERE_TELEGRAM_CHANNEL_ID` | chat ID that published signals get posted to |
-| `TRADOSPHERE_WHATSAPP_PHONE_NUMBER_ID` | only if using WhatsApp distribution |
-| `TRADOSPHERE_WHATSAPP_DISTRIBUTION_NUMBER` | only if using WhatsApp distribution |
+| `supabaseUrl` | pre-filled with `https://bcjgfdwjmhfgkqglcasu.supabase.co` — leave as-is unless you're pointing at a different Supabase project |
+| `telegramChannelId` | chat ID that published signals get posted to |
+| `whatsappPhoneNumberId` | only if using WhatsApp distribution |
+| `whatsappDistributionNumber` | only if using WhatsApp distribution |
 
 ## 4. Create the 4 credentials
 
@@ -45,7 +45,7 @@ Every incoming message is matched against `signal_sources.telegram_chat_id` / `w
 
 1. Toggle the workflow to **Active**.
 2. Send one real message from a registered Telegram channel.
-3. Open the execution log — every node in the path should go green in order: Trigger → Normalize → Insert Raw Message → Source Registered → AI Agent → Parse AI Output → validation → Check Duplicate Fingerprint → Publish Signal → Log Distribution (×3).
+3. Open the execution log — every node in the path should go green in order: Trigger → Normalize → Merge All Sources → Workflow Config → Insert Raw Message → Source Registered → AI Agent → Parse AI Output → validation → Check Duplicate Fingerprint → Publish Signal → Log Distribution (×3).
 4. If any node goes red, open it — the error message names the exact PostgREST/API failure (e.g. a 401 means the wrong Supabase key, a 404 on `/rpc/<fn>` means the migration wasn't applied on this project).
 
 ## Known limitations (not bugs)
