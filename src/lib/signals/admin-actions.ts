@@ -187,10 +187,15 @@ export async function upsertSignalSource(
     const { user } = await requireAdmin();
     const slug = draft.slug.trim().toLowerCase();
     if (!slug || !draft.name.trim()) return { ok: false, error: "Slug and name are required." };
-    // auto_verify releases a signal without human review, so it is only
-    // meaningful for a source the desk has explicitly marked trusted.
-    if (draft.autoVerify && !draft.isTrusted) {
-      return { ok: false, error: "Only a trusted source may be set to auto-verify." };
+    // Mission 8: auto-release is permanently disabled at the database layer
+    // (signal_sources_auto_verify_disabled, migration 0028) — every signal,
+    // from every source, requires an explicit admin approve/reject. Rejecting
+    // here too just gives a clear message instead of a raw constraint error.
+    if (draft.autoVerify) {
+      return {
+        ok: false,
+        error: "Auto-verify is disabled platform-wide. Every signal requires explicit admin approval.",
+      };
     }
 
     const supabase = await createClient();

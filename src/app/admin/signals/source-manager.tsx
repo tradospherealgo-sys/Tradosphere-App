@@ -173,17 +173,12 @@ export function SourceManager({ sources }: { sources: SignalSource[] }) {
           />
           Trusted source
         </label>
-        <label className="flex items-start gap-3 text-sm text-text-muted">
-          <input
-            type="checkbox"
-            checked={autoVerify}
-            onChange={(e) => setAutoVerify(e.target.checked)}
-            disabled={!isTrusted}
-            className="mt-0.5 size-5"
-          />
+        <label className="flex items-start gap-3 text-sm text-text-faint">
+          <input type="checkbox" checked={false} disabled className="mt-0.5 size-5" />
           <span>
-            Auto-verify — release this source&rsquo;s calls to clients without human
-            review. Only available for a trusted source.
+            Auto-verify — disabled platform-wide. Every signal, from every
+            source, requires an explicit admin approve/reject before it can
+            reach a client dashboard.
           </span>
         </label>
         <div className="flex items-center gap-3">

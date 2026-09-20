@@ -12,14 +12,26 @@ import type { SignalWithSource } from "./reads";
  * from the service-role client, so an admin whose role is revoked loses it
  * immediately.
  */
-const EMBED = "*, signal_sources(slug, name, kind, is_trusted)";
+
+// Pending-review rows also carry their pipeline provenance: the raw inbound
+// message and the AI agent's classification output, so an admin can see
+// exactly what the source sent and what the model made of it before
+// approving or rejecting. `raw_signal_messages` is n8n's channel-agnostic
+// inbox (0019); a manually-entered or legacy-Telegram signal simply has none.
+const REVIEW_EMBED =
+  "*, signal_sources(slug, name, kind, is_trusted), raw_signal_messages(channel, sender, raw_text, ai_category, ai_confidence, ai_extraction, ai_model, received_at)";
+
+// Released/rejected rows also carry who reviewed them and when, for the
+// approval/rejection audit trail (Mission 8, requirement 1).
+const REVIEWED_EMBED =
+  "*, signal_sources(slug, name, kind, is_trusted), reviewer:profiles!signals_verified_by_fkey(email, full_name)";
 
 export async function getSignalReviewQueue(): Promise<SignalWithSource[]> {
   await requireAdmin();
   const supabase = await createClient();
   const { data } = await supabase
     .from("signals")
-    .select(EMBED)
+    .select(REVIEW_EMBED)
     .eq("verification_state", "unverified")
     .order("issued_at", { ascending: false })
     .limit(100);
@@ -31,7 +43,7 @@ export async function getAllSignals(limit = 100): Promise<SignalWithSource[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("signals")
-    .select(EMBED)
+    .select(REVIEWED_EMBED)
     .order("issued_at", { ascending: false })
     .limit(limit);
   return (data ?? []) as unknown as SignalWithSource[];

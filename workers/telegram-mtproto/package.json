@@ -1,0 +1,23 @@
+{
+  "name": "tradosphere-telegram-mtproto-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authorized Telegram client (MTProto) ingestion worker for Tradosphere Signal OS — Mission 7 Option B. Not part of the Next.js app; runs as its own always-on process.",
+  "type": "module",
+  "scripts": {
+    "login": "tsx src/login.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start:built": "node dist/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "teleproto": "^1.229.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "input": "^1.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

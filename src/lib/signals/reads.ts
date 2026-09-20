@@ -13,6 +13,19 @@ import type { Signal, SignalSource } from "@/types/database";
 
 export type SignalWithSource = Signal & {
   signal_sources: Pick<SignalSource, "slug" | "name" | "kind" | "is_trusted"> | null;
+  // Present only on admin reads that opt into it (see admin-reads.ts) — the
+  // AI pipeline's raw message + classification, and who reviewed the signal.
+  raw_signal_messages?: {
+    channel: string;
+    sender: string | null;
+    raw_text: string;
+    ai_category: string | null;
+    ai_confidence: number | null;
+    ai_extraction: Record<string, unknown> | null;
+    ai_model: string | null;
+    received_at: string;
+  }[];
+  reviewer?: { email: string; full_name: string | null } | null;
 };
 
 const SOURCE_EMBED =

@@ -52,9 +52,10 @@ export default async function AdminSignalsPage() {
           Signal Desk
         </h1>
         <p className="mt-1 text-sm text-text-muted">
-          Nothing reaches a client dashboard until it is verified here.
-          Verifying a signal releases it to every subscriber and sends a
-          broadcast notification in the same transaction.
+          Nothing reaches a client dashboard until it is approved here — every
+          signal, from every source, however trusted. Approving a signal
+          releases it to every subscriber and sends a broadcast notification
+          in the same transaction; rejecting it keeps it permanently hidden.
         </p>
       </header>
 
@@ -90,14 +91,42 @@ export default async function AdminSignalsPage() {
                   <span>R:R {s.risk_reward !== null ? s.risk_reward.toFixed(2) : "n/a"}</span>
                 </div>
                 {s.rationale && <p className="mt-2 text-sm text-text-muted">{s.rationale}</p>}
-                {s.raw_message && (
+                {(s.raw_message || s.raw_signal_messages?.[0]) && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-text-faint">
-                      Original message
+                      Original source message
                     </summary>
-                    <pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded-lg bg-bg p-3 text-xs text-text-muted">
-                      {s.raw_message}
-                    </pre>
+                    <div className="mt-1 space-y-1 text-xs text-text-faint">
+                      {s.raw_signal_messages?.[0] && (
+                        <p>
+                          via {s.raw_signal_messages[0].channel}
+                          {s.raw_signal_messages[0].sender ? ` from ${s.raw_signal_messages[0].sender}` : ""} ·{" "}
+                          {new Date(s.raw_signal_messages[0].received_at).toLocaleString("en-IN")}
+                        </p>
+                      )}
+                      <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-bg p-3 text-xs text-text-muted">
+                        {s.raw_signal_messages?.[0]?.raw_text ?? s.raw_message}
+                      </pre>
+                    </div>
+                  </details>
+                )}
+                {s.raw_signal_messages?.[0] && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-text-faint">
+                      AI processing result
+                    </summary>
+                    <div className="mt-1 rounded-lg bg-bg p-3 text-xs text-text-muted">
+                      <p>
+                        Model {s.raw_signal_messages[0].ai_model ?? "n/a"} · Category{" "}
+                        {s.raw_signal_messages[0].ai_category ?? "n/a"} · Confidence{" "}
+                        {s.raw_signal_messages[0].ai_confidence ?? "n/a"}
+                      </p>
+                      {s.raw_signal_messages[0].ai_extraction && (
+                        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
+                          {JSON.stringify(s.raw_signal_messages[0].ai_extraction, null, 2)}
+                        </pre>
+                      )}
+                    </div>
                   </details>
                 )}
                 <div className="mt-3">
@@ -134,6 +163,10 @@ export default async function AdminSignalsPage() {
                     {s.signal_sources?.name ?? "unknown source"}
                   </span>
                 </div>
+                <p className="mt-1 text-xs text-text-faint">
+                  Approved by {s.reviewer?.full_name ?? s.reviewer?.email ?? "unknown reviewer"}
+                  {s.verified_at ? ` · ${new Date(s.verified_at).toLocaleString("en-IN")}` : ""}
+                </p>
                 <div className="mt-3">
                   <LifecycleControls signalId={s.id} />
                 </div>

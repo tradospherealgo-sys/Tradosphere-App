@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated Capacitor scaffolding and Gradle output — not ours to style.
     "android/**",
+    // Standalone worker with its own package.json/tsconfig/deps — not part
+    // of the Next.js app's dependency graph or lint/type pipeline.
+    "workers/**",
   ]),
   {
     rules: {
