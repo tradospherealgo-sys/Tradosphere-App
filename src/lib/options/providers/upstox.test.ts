@@ -1,8 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpstoxOptionChainProvider } from "./upstox";
 import { __testing } from "./upstox";
 
 const { mapLeg, toNumber, diffOrNull } = __testing;
+
+// A symbol containing "|" is treated as an already-resolved instrument_key,
+// so these tests never touch Supabase — they exercise the fetch/parse path.
+const KEY = "NSE_INDEX|Nifty 50";
+
+function withToken<T>(run: () => Promise<T>): Promise<T> {
+  process.env.UPSTOX_OPT_ACCESS_TOKEN_TEST = "token-123";
+  return run().finally(() => {
+    delete process.env.UPSTOX_OPT_ACCESS_TOKEN_TEST;
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("UpstoxOptionChainProvider.isConfigured", () => {
   it("is unconfigured with no access-token env var set", () => {
@@ -107,4 +122,72 @@ describe("diffOrNull", () => {
     expect(diffOrNull(1074975, null)).toBeNull();
     expect(diffOrNull(null, null)).toBeNull();
   });
+});
+
+describe("UpstoxOptionChainProvider.getChain", () => {
+  it("returns null when unconfigured (no token) without calling fetch", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST_UNSET");
+    expect(await provider.getChain(KEY, "2025-01-30")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps calls and puts on a real-shaped success response", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                strike_price: 23500,
+                underlying_spot_price: 23480,
+                call_options: { market_data: { ltp: 150 }, option_greeks: { delta: 0.5 } },
+                put_options: { market_data: { ltp: 90 }, option_greeks: { delta: -0.5 } },
+              },
+            ],
+          }),
+        })
+      );
+      const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST");
+      const snapshot = await provider.getChain(KEY, "2025-01-30");
+      expect(snapshot).not.toBeNull();
+      expect(snapshot?.legs).toHaveLength(2);
+      expect(snapshot?.spotAtCapture).toBe(23480);
+    }));
+
+  it("returns null on an empty chain rather than a fabricated snapshot", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }));
+      const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST");
+      expect(await provider.getChain(KEY, "2025-01-30")).toBeNull();
+    }));
+
+  it("returns null rather than throwing on an Upstox API error", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST");
+      expect(await provider.getChain(KEY, "2025-01-30")).toBeNull();
+    }));
+
+  it("returns null when Upstox rejects the token with 401 during the contract lookup", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+      const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST");
+      // No explicit expiry -> falls back to getExpiries(), which also 401s -> [].
+      expect(await provider.getChain(KEY)).toBeNull();
+    }));
+});
+
+describe("UpstoxOptionChainProvider.testConnection", () => {
+  it("distinguishes an expired/invalid token (401) from other failures", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+      const provider = new UpstoxOptionChainProvider({}, "UPSTOX_OPT_ACCESS_TOKEN_TEST");
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/401/);
+    }));
 });

@@ -1,16 +1,19 @@
 {
-  "name": "Tradosphere Signal OS — Master Pipeline",
+  "name": "Tradosphere Signal OS \u2014 Master Pipeline",
   "nodes": [
     {
       "id": "note_readme",
       "name": "Read Me",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-680, -420],
+      "position": [
+        -680,
+        -420
+      ],
       "parameters": {
         "width": 620,
         "height": 380,
-        "content": "## Tradosphere Signal OS — Master Pipeline\n\nIngestion (Telegram / WhatsApp / future API) → Normalize → Insert raw → AI Agent extraction → Deterministic validation → Fingerprint dedup → Publish to `signals` → Distribute (Telegram / WhatsApp / Dashboard), each destination logged and retried independently.\n\nThis is additive to the existing app: it does NOT touch the existing single-bot `telegram_inbox` rule-based path (src/lib/signals/ingest.ts). It writes through `raw_signal_messages`, `signals`, `distribution_logs`, `workflow_errors` from migration 0019_signal_os.sql (RPC wrappers added in 0027_signal_os_rpc_wrappers.sql).\n\nEvery database-touching node here is an HTTP Request calling a Supabase REST RPC endpoint (`/rest/v1/rpc/<function>`), never a direct Postgres connection. Every one of those functions is SECURITY DEFINER, granted to `service_role` only — no browser role can reach these tables directly.\n\nSee the \"Credentials Needed\" note for what to configure before activating.\n\n### Mission 8 update — mandatory human approval\n\nEvery signal, from every source, now requires explicit admin approval. `signal_sources.auto_verify` is permanently pinned to `false` by a database check constraint (migration 0028_signal_os_mandatory_human_review.sql), so `Publish Signal`'s call to `ingest_classified_signal` always lands the row `pending`/`unverified` regardless of a source's trust level. An admin must approve or reject it in Signal Desk (`/admin/signals`) before it is visible to any client. No node in this workflow needed to change to enforce this — the gate lives in the database so it cannot be bypassed by a future workflow edit.\n\n### Mission 7 update — Telegram Option B (authorized client ingestion)\n\nThe 5 real source channels are premium channels Tradosphere subscribes to, not channels it administers, so the Bot API trigger above (`Telegram Channels In`) cannot receive them — a bot can only see chats it has been added to, and these channel owners will not add a third-party bot. Ingestion for those 5 channels instead runs as a separate always-on worker (`workers/telegram-mtproto/`) authenticated as the subscriber's own Telegram account (MTProto, fully authorized — the account is a legitimate member of each channel), which POSTs already-normalized messages to the new `Telegram MTProto In` webhook node below. This is additive: `Telegram Channels In` (Bot API) is left in place for any future channel Tradosphere does administer directly."
+        "content": "## Tradosphere Signal OS \u2014 Master Pipeline\n\nIngestion (Telegram / WhatsApp / future API) \u2192 Normalize \u2192 Insert raw \u2192 AI Agent extraction \u2192 Deterministic validation \u2192 Fingerprint dedup \u2192 Publish to `signals` \u2192 Distribute (Telegram / WhatsApp / Dashboard), each destination logged and retried independently.\n\nThis is additive to the existing app: it does NOT touch the existing single-bot `telegram_inbox` rule-based path (src/lib/signals/ingest.ts). It writes through `raw_signal_messages`, `signals`, `distribution_logs`, `workflow_errors` from migration 0019_signal_os.sql (RPC wrappers added in 0027_signal_os_rpc_wrappers.sql).\n\nEvery database-touching node here is an HTTP Request calling a Supabase REST RPC endpoint (`/rest/v1/rpc/<function>`), never a direct Postgres connection. Every one of those functions is SECURITY DEFINER, granted to `service_role` only \u2014 no browser role can reach these tables directly.\n\nSee the \"Credentials Needed\" note for what to configure before activating.\n\n### Mission 8 update \u2014 mandatory human approval\n\nEvery signal, from every source, now requires explicit admin approval. `signal_sources.auto_verify` is permanently pinned to `false` by a database check constraint (migration 0028_signal_os_mandatory_human_review.sql), so `Publish Signal`'s call to `ingest_classified_signal` always lands the row `pending`/`unverified` regardless of a source's trust level. An admin must approve or reject it in Signal Desk (`/admin/signals`) before it is visible to any client. No node in this workflow needed to change to enforce this \u2014 the gate lives in the database so it cannot be bypassed by a future workflow edit.\n\n### Mission 7 update \u2014 Telegram Option B (authorized client ingestion)\n\nThe 5 real source channels are premium channels Tradosphere subscribes to, not channels it administers, so the Bot API trigger above (`Telegram Channels In`) cannot receive them \u2014 a bot can only see chats it has been added to, and these channel owners will not add a third-party bot. Ingestion for those 5 channels instead runs as a separate always-on worker (`workers/telegram-mtproto/`) authenticated as the subscriber's own Telegram account (MTProto, fully authorized \u2014 the account is a legitimate member of each channel), which POSTs already-normalized messages to the new `Telegram MTProto In` webhook node below. This is additive: `Telegram Channels In` (Bot API) is left in place for any future channel Tradosphere does administer directly."
       }
     },
     {
@@ -18,11 +21,14 @@
       "name": "Credentials Needed",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-680, 20],
+      "position": [
+        -680,
+        20
+      ],
       "parameters": {
         "width": 660,
         "height": 520,
-        "content": "## Credentials to create after import\n\n1. **Supabase API** — \"Tradosphere Supabase — Production\" (the current production project; do not point this at an older/staging Supabase project). Host = your project URL (`https://YOUR_PROJECT_REF.supabase.co`), Secret Key = the **service_role** key from Project Settings → API. Used by every database node — no Postgres connection string, port, or password needed at all; everything goes over the REST API.\n2. **Telegram API** — bot token for the Signal OS ingestion bot. IMPORTANT: use a bot token DIFFERENT from the app's existing `/api/telegram/webhook` bot — Telegram allows only one webhook per bot token, and this workflow's Telegram Trigger node registers its own. This bot is for any *future* channel Tradosphere administers directly — do NOT add it to the 5 premium SMC source channels, since their owners will not approve a third-party bot; those 5 are ingested instead via the separate `Telegram MTProto In` webhook (see item 6 below and `workers/telegram-mtproto/README.md`).\n3. **WhatsApp Trigger API** + **WhatsApp API** — Meta WhatsApp Business Cloud credentials (Business Account ID, Phone Number ID, access token, webhook verify token). The official Cloud API receives messages sent to YOUR business number — it does not read arbitrary community WhatsApp groups you don't administer. The 3 \"WhatsApp source groups\" need to relay into this business number. This is a real platform constraint, not an n8n limitation. Skip this credential (and delete the WhatsApp nodes) if you're Telegram-only for now.\n4. **Groq API key** — used by the AI Agent's language model sub-node (Groq Model, model `openai/gpt-oss-120b`). Get a key at console.groq.com; no other setup needed, n8n's native Groq node handles the rest.\n5. **SMC Auto Trender** — no credential exists. The HTTP Request node for it is disabled and its URL is a placeholder. WAITING FOR OFFICIAL SMC API ACCESS.\n6. **Header Auth** — \"Tradosphere Signal Worker Secret\" for the `Telegram MTProto In` webhook node. Header name `X-Signal-Worker-Secret`, value = any long random string you generate — it must match the `WEBHOOK_SECRET` env var set on the `workers/telegram-mtproto/` worker (see that folder's README). This is the only thing authenticating that webhook; without it anyone who finds the URL could inject fake raw messages.\n\n## Non-secret config: the \"Workflow Config\" node, not Variables\n\nn8n Settings → Variables/Environments is an Enterprise-only feature on many self-hosted instances (yours included), and node expressions cannot read `$env`/`process.env` by default (`N8N_BLOCK_ENV_ACCESS_IN_NODE=true`) — that setting should stay on rather than be turned off. Neither is needed here: none of the 4 values below are secrets (the actual secret, the `service_role` key, lives only in the Supabase credential). They're plain fields on the **\"Workflow Config\"** node (a Set/Edit Fields node placed right after Merge All Sources), read downstream via `$('Workflow Config').item.json.<field>`. Open that node after import and fill in:\n\n- `supabaseUrl` — pre-filled with the production project's public REST base URL. Only change this if you ever point the workflow at a different Supabase project.\n- `telegramChannelId` — blank on import; the chat ID the distribution step posts published signals to.\n- `whatsappPhoneNumberId` / `whatsappDistributionNumber` — blank on import; only needed if using the WhatsApp distribution nodes.\n\n`Log Workflow Error` (fed by the separate Error Trigger, which never sees \"Workflow Config\"'s output) has the same Supabase URL hard-coded directly in its own URL field for the same non-secret reason.\n\nNo credential is hard-coded in this file — every credential block below references a placeholder id that will not resolve on your instance; n8n will prompt you to bind a real credential to each node after import."
+        "content": "## Credentials to create after import\n\n1. **Supabase API** \u2014 \"Tradosphere Supabase \u2014 Production\" (the current production project; do not point this at an older/staging Supabase project). Host = your project URL (`https://YOUR_PROJECT_REF.supabase.co`), Secret Key = the **service_role** key from Project Settings \u2192 API. Used by every database node \u2014 no Postgres connection string, port, or password needed at all; everything goes over the REST API.\n2. **Telegram API** \u2014 bot token for the Signal OS ingestion bot. IMPORTANT: use a bot token DIFFERENT from the app's existing `/api/telegram/webhook` bot \u2014 Telegram allows only one webhook per bot token, and this workflow's Telegram Trigger node registers its own. This bot is for any *future* channel Tradosphere administers directly \u2014 do NOT add it to the 5 premium SMC source channels, since their owners will not approve a third-party bot; those 5 are ingested instead via the separate `Telegram MTProto In` webhook (see item 6 below and `workers/telegram-mtproto/README.md`).\n3. **WhatsApp Trigger API** + **WhatsApp API** \u2014 Meta WhatsApp Business Cloud credentials (Business Account ID, Phone Number ID, access token, webhook verify token). The official Cloud API receives messages sent to YOUR business number \u2014 it does not read arbitrary community WhatsApp groups you don't administer. The 3 \"WhatsApp source groups\" need to relay into this business number. This is a real platform constraint, not an n8n limitation. Skip this credential (and delete the WhatsApp nodes) if you're Telegram-only for now.\n4. **Groq API key** \u2014 used by the AI Agent's language model sub-node (Groq Model, model `openai/gpt-oss-120b`). Get a key at console.groq.com; no other setup needed, n8n's native Groq node handles the rest.\n5. **SMC Auto Trender** \u2014 no credential exists. The HTTP Request node for it is disabled and its URL is a placeholder. WAITING FOR OFFICIAL SMC API ACCESS.\n6. **Header Auth** \u2014 \"Tradosphere Signal Worker Secret\" for the `Telegram MTProto In` webhook node. Header name `X-Signal-Worker-Secret`, value = any long random string you generate \u2014 it must match the `WEBHOOK_SECRET` env var set on the `workers/telegram-mtproto/` worker (see that folder's README). This is the only thing authenticating that webhook; without it anyone who finds the URL could inject fake raw messages.\n\n## Non-secret config: the \"Workflow Config\" node, not Variables\n\nn8n Settings \u2192 Variables/Environments is an Enterprise-only feature on many self-hosted instances (yours included), and node expressions cannot read `$env`/`process.env` by default (`N8N_BLOCK_ENV_ACCESS_IN_NODE=true`) \u2014 that setting should stay on rather than be turned off. Neither is needed here: none of the 4 values below are secrets (the actual secret, the `service_role` key, lives only in the Supabase credential). They're plain fields on the **\"Workflow Config\"** node (a Set/Edit Fields node placed right after Merge All Sources), read downstream via `$('Workflow Config').item.json.<field>`. Open that node after import and fill in:\n\n- `supabaseUrl` \u2014 pre-filled with the production project's public REST base URL. Only change this if you ever point the workflow at a different Supabase project.\n- `telegramChannelId` \u2014 blank on import; the chat ID the distribution step posts published signals to.\n- `whatsappPhoneNumberId` / `whatsappDistributionNumber` \u2014 blank on import; only needed if using the WhatsApp distribution nodes.\n\n`Log Workflow Error` (fed by the separate Error Trigger, which never sees \"Workflow Config\"'s output) has the same Supabase URL hard-coded directly in its own URL field for the same non-secret reason.\n\nNo credential is hard-coded in this file \u2014 every credential block below references a placeholder id that will not resolve on your instance; n8n will prompt you to bind a real credential to each node after import."
       }
     },
     {
@@ -30,13 +36,23 @@
       "name": "Telegram Channels In",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
-      "position": [-200, -120],
+      "position": [
+        -200,
+        -120
+      ],
       "parameters": {
-        "updates": ["message", "channel_post"],
+        "updates": [
+          "message",
+          "channel_post",
+          "edited_channel_post"
+        ],
         "additionalFields": {}
       },
       "credentials": {
-        "telegramApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Signal Bot" }
+        "telegramApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Signal Bot"
+        }
       }
     },
     {
@@ -44,22 +60,30 @@
       "name": "WhatsApp Groups In",
       "type": "n8n-nodes-base.whatsAppTrigger",
       "typeVersion": 1,
-      "position": [-200, 120],
+      "position": [
+        -200,
+        120
+      ],
       "parameters": {
-        "updates": ["messages"]
+        "updates": [
+          "messages"
+        ]
       },
-      "credentials": {
-        "whatsAppTriggerApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere WhatsApp Business Cloud" }
-      }
+      "disabled": true,
+      "notes": "TEMPORARILY DISABLED: no whatsAppTriggerApi credential exists yet (waiting on user Meta Cloud API setup). n8n refuses to activate a workflow while ANY trigger node references a nonexistent credential, so this node was disabled to allow the Telegram/MTProto paths to go live and be tested. Re-enable and bind the real Meta credential once WhatsApp setup is complete, then re-activate.",
+      "notesInFlow": true
     },
     {
       "id": "n_tg_mtproto",
       "name": "Telegram MTProto In",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-200, 240],
+      "position": [
+        -200,
+        240
+      ],
       "notesInFlow": true,
-      "notes": "Receives already-normalized messages from the separate authorized-Telegram-client worker (workers/telegram-mtproto/), which ingests the 5 premium SMC channels via the user's own Telegram account (Option B) — the Bot API trigger above cannot reach those, since the bot is not and cannot be a member of channels Tradosphere does not administer. Payload is pre-shaped to match Normalize Telegram's output exactly, so it feeds Merge All Sources directly with no normalize step needed. Protected by Header Auth — reject-by-default if the shared secret does not match.",
+      "notes": "Receives already-normalized messages from the separate authorized-Telegram-client worker (workers/telegram-mtproto/), which ingests the 5 premium SMC channels via the user's own Telegram account (Option B) \u2014 the Bot API trigger above cannot reach those, since the bot is not and cannot be a member of channels Tradosphere does not administer. Payload is pre-shaped to match Normalize Telegram's output exactly, so it feeds Merge All Sources directly with no normalize step needed. Protected by Header Auth \u2014 reject-by-default if the shared secret does not match.",
       "parameters": {
         "httpMethod": "POST",
         "path": "telegram-mtproto-in",
@@ -68,7 +92,10 @@
         "options": {}
       },
       "credentials": {
-        "httpHeaderAuth": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Signal Worker Secret" }
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Signal Worker Secret"
+        }
       }
     },
     {
@@ -76,10 +103,20 @@
       "name": "SMC Poll Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-200, 360],
+      "position": [
+        -200,
+        360
+      ],
       "disabled": true,
       "parameters": {
-        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
       }
     },
     {
@@ -87,7 +124,10 @@
       "name": "SMC Auto Trender API - Waiting For Access",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [40, 360],
+      "position": [
+        40,
+        360
+      ],
       "disabled": true,
       "notesInFlow": true,
       "notes": "WAITING FOR OFFICIAL SMC API ACCESS. Placeholder URL. Do not enable until SMC publishes a documented Auto Trender endpoint and credentials exist.",
@@ -103,7 +143,10 @@
       "name": "Test Mode Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [-200, 620],
+      "position": [
+        -200,
+        620
+      ],
       "parameters": {}
     },
     {
@@ -111,9 +154,12 @@
       "name": "Normalize Telegram",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [80, -120],
+      "position": [
+        80,
+        -120
+      ],
       "parameters": {
-        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const update = item.json;\n  const msg = update.message || update.channel_post || update.edited_message;\n  if (!msg || !msg.text) continue;\n  const chatId = String(msg.chat?.id ?? '');\n  const messageId = String(msg.message_id ?? '');\n  const sender = msg.from?.username || msg.from?.first_name || null;\n  const text = msg.text || '';\n  const receivedAt = new Date((msg.date ? msg.date * 1000 : Date.now())).toISOString();\n  out.push({\n    json: {\n      channel: 'telegram',\n      external_chat_id: chatId,\n      external_message_id: messageId,\n      sender,\n      raw_text: text,\n      raw_payload: update,\n      received_at: receivedAt,\n      is_test: false\n    }\n  });\n}\nreturn out;"
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const update = item.json;\n  const msg = update.message || update.channel_post || update.edited_message || update.edited_channel_post;\n  if (!msg || !msg.text) continue;\n  const chatId = String(msg.chat?.id ?? '');\n  const messageId = String(msg.message_id ?? '');\n  const sender = msg.from?.username || msg.from?.first_name || null;\n  const text = msg.text || '';\n  const receivedAt = new Date((msg.date ? msg.date * 1000 : Date.now())).toISOString();\n  out.push({\n    json: {\n      channel: 'telegram',\n      external_chat_id: chatId,\n      external_message_id: messageId,\n      sender,\n      raw_text: text,\n      raw_payload: update,\n      received_at: receivedAt,\n      is_test: false\n    }\n  });\n}\nreturn out;"
       }
     },
     {
@@ -121,7 +167,10 @@
       "name": "Normalize WhatsApp",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [80, 120],
+      "position": [
+        80,
+        120
+      ],
       "parameters": {
         "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const body = item.json;\n  const entries = body.entry || [];\n  for (const entry of entries) {\n    const changes = entry.changes || [];\n    for (const change of changes) {\n      const value = change.value || {};\n      const messages = value.messages || [];\n      for (const m of messages) {\n        const chatId = String(value.metadata?.phone_number_id ?? m.from ?? '');\n        const messageId = String(m.id ?? '');\n        const text = m.text?.body || m.button?.text || '';\n        if (!text) continue;\n        const receivedAt = new Date((m.timestamp ? Number(m.timestamp) * 1000 : Date.now())).toISOString();\n        out.push({\n          json: {\n            channel: 'whatsapp',\n            external_chat_id: chatId,\n            external_message_id: messageId,\n            sender: m.from || null,\n            raw_text: text,\n            raw_payload: body,\n            received_at: receivedAt,\n            is_test: false\n          }\n        });\n      }\n    }\n  }\n}\nreturn out;"
       }
@@ -131,9 +180,12 @@
       "name": "Normalize SMC API",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [320, 360],
+      "position": [
+        320,
+        360
+      ],
       "parameters": {
-        "jsCode": "// WAITING FOR OFFICIAL SMC API ACCESS — upstream HTTP node is disabled.\n// The response shape below is a placeholder guess, not a documented\n// contract. Update once real API docs exist; keep the HTTP node disabled\n// until then.\nconst out = [];\nfor (const item of $input.all()) {\n  const rows = Array.isArray(item.json) ? item.json : (item.json.data || item.json.signals || []);\n  for (const row of rows) {\n    const text = row.text || row.message || JSON.stringify(row);\n    out.push({\n      json: {\n        channel: 'api',\n        external_chat_id: 'smc_auto_trender',\n        external_message_id: String(row.id ?? ''),\n        sender: 'smc_auto_trender',\n        raw_text: text,\n        raw_payload: row,\n        received_at: new Date().toISOString(),\n        is_test: false\n      }\n    });\n  }\n}\nreturn out;"
+        "jsCode": "// WAITING FOR OFFICIAL SMC API ACCESS \u2014 upstream HTTP node is disabled.\n// The response shape below is a placeholder guess, not a documented\n// contract. Update once real API docs exist; keep the HTTP node disabled\n// until then.\nconst out = [];\nfor (const item of $input.all()) {\n  const rows = Array.isArray(item.json) ? item.json : (item.json.data || item.json.signals || []);\n  for (const row of rows) {\n    const text = row.text || row.message || JSON.stringify(row);\n    out.push({\n      json: {\n        channel: 'api',\n        external_chat_id: 'smc_auto_trender',\n        external_message_id: String(row.id ?? ''),\n        sender: 'smc_auto_trender',\n        raw_text: text,\n        raw_payload: row,\n        received_at: new Date().toISOString(),\n        is_test: false\n      }\n    });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -141,7 +193,10 @@
       "name": "Test Fixture Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [80, 620],
+      "position": [
+        80,
+        620
+      ],
       "parameters": {
         "jsCode": "// Deterministic sample so the full pipeline can be exercised without\n// touching a real source or a real client-facing channel. \"Test Mode\n// Check\" downstream skips the real Telegram/WhatsApp sends for is_test\n// items.\n//\n// Before running: register a signal_sources row for this fixture, e.g.\n//   insert into signal_sources (slug, name, kind, telegram_chat_id, is_active)\n//   values ('test-fixture', 'Test Fixture', 'manual', 'TEST_FIXTURE', true);\nconst text = 'BUY BANKNIFTY 51000 CE above 420, SL 380, Target1 460 Target2 500. Intraday view, 30-45 min timeframe.';\nconst id = `test-${Date.now()}`;\nreturn [{\n  json: {\n    channel: 'telegram',\n    external_chat_id: 'TEST_FIXTURE',\n    external_message_id: id,\n    sender: 'test_harness',\n    raw_text: text,\n    raw_payload: { source: 'test_mode_trigger' },\n    received_at: new Date().toISOString(),\n    is_test: true\n  }\n}];"
       }
@@ -151,7 +206,10 @@
       "name": "Merge All Sources",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [560, 120],
+      "position": [
+        560,
+        120
+      ],
       "parameters": {
         "mode": "append",
         "numberInputs": 5
@@ -162,18 +220,41 @@
       "name": "Workflow Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [680, 120],
+      "position": [
+        680,
+        120
+      ],
       "notesInFlow": true,
-      "notes": "Non-secret deployment config, edited directly in this node's fields after import. This instance's Settings has no Variables/Environments (that's an Enterprise-only feature here), and node expressions cannot read $env/process.env by default (N8N_BLOCK_ENV_ACCESS_IN_NODE) — neither should be worked around, so config that isn't a secret lives here instead, as plain node parameters referenced downstream via $('Workflow Config').item.json.*. supabaseUrl is pre-filled with the production project's public REST base URL (not a secret — the service_role key stays in the Supabase credential, never here). telegramChannelId / whatsappPhoneNumberId / whatsappDistributionNumber are blank on import; fill them in here once known. This node sits right after Merge All Sources so every downstream node in the pipeline can reach it.",
+      "notes": "Non-secret deployment config, edited directly in this node's fields after import. This instance's Settings has no Variables/Environments (that's an Enterprise-only feature here), and node expressions cannot read $env/process.env by default (N8N_BLOCK_ENV_ACCESS_IN_NODE) \u2014 neither should be worked around, so config that isn't a secret lives here instead, as plain node parameters referenced downstream via $('Workflow Config').item.json.*. supabaseUrl is pre-filled with the production project's public REST base URL (not a secret \u2014 the service_role key stays in the Supabase credential, never here). telegramChannelId / whatsappPhoneNumberId / whatsappDistributionNumber are blank on import; fill them in here once known. This node sits right after Merge All Sources so every downstream node in the pipeline can reach it.",
       "parameters": {
         "mode": "manual",
         "duplicateItem": false,
         "assignments": {
           "assignments": [
-            { "id": "wc1", "name": "supabaseUrl", "value": "https://bcjgfdwjmhfgkqglcasu.supabase.co", "type": "string" },
-            { "id": "wc2", "name": "telegramChannelId", "value": "", "type": "string" },
-            { "id": "wc3", "name": "whatsappPhoneNumberId", "value": "", "type": "string" },
-            { "id": "wc4", "name": "whatsappDistributionNumber", "value": "", "type": "string" }
+            {
+              "id": "wc1",
+              "name": "supabaseUrl",
+              "value": "https://bcjgfdwjmhfgkqglcasu.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "wc2",
+              "name": "telegramChannelId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "wc3",
+              "name": "whatsappPhoneNumberId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "wc4",
+              "name": "whatsappDistributionNumber",
+              "value": "",
+              "type": "string"
+            }
           ]
         },
         "includeOtherFields": true,
@@ -185,7 +266,13 @@
       "name": "Insert Raw Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [800, 260],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        800,
+        260
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/insert_raw_signal_message",
@@ -196,9 +283,12 @@
         "jsonBody": "={{ JSON.stringify({ p_channel: $json.channel, p_external_chat_id: $json.external_chat_id, p_external_message_id: $json.external_message_id, p_sender: $json.sender, p_raw_text: $json.raw_text, p_raw_payload: $json.raw_payload, p_received_at: $json.received_at }) }}",
         "options": {}
       },
-      "notes": "Calls public.insert_raw_signal_message (0027_signal_os_rpc_wrappers.sql). Returns 0 rows (branch stops here) on a re-delivered message, 1 row otherwise — same semantics as the raw SQL it replaced.",
+      "notes": "Calls public.insert_raw_signal_message (0027_signal_os_rpc_wrappers.sql). Returns 0 rows (branch stops here) on a re-delivered message, 1 row otherwise \u2014 same semantics as the raw SQL it replaced.",
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -206,16 +296,26 @@
       "name": "Source Registered",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1040, 120],
+      "position": [
+        1040,
+        120
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json.source_found }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -228,7 +328,13 @@
       "name": "Quarantine Unregistered Source",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1280, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1280,
+        300
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/quarantine_raw_message",
@@ -240,7 +346,10 @@
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -248,58 +357,341 @@
       "name": "Ignored Unregistered Source",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1520, 300],
+      "position": [
+        1520,
+        300
+      ],
       "parameters": {}
     },
     {
-      "id": "n17",
-      "name": "AI Agent Extract And Classify",
+      "id": "n_groq_mark",
+      "name": "MARK Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -200
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.1,
+          "maxTokensToSample": 4096
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Mark"
+        }
+      }
+    },
+    {
+      "id": "n_groq_muse",
+      "name": "MUSE Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        -200
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.2,
+          "maxTokensToSample": 4096
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Muse"
+        }
+      }
+    },
+    {
+      "id": "n_groq_echo",
+      "name": "ECHO Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        -200
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0,
+          "maxTokensToSample": 4096
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Echo"
+        }
+      }
+    },
+    {
+      "id": "n_groq_scout",
+      "name": "SCOUT Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        -200
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.1,
+          "maxTokensToSample": 4096
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Scout"
+        }
+      }
+    },
+    {
+      "id": "n_groq_atlas",
+      "name": "ATLAS Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        -200
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0,
+          "maxTokensToSample": 4096
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Atlas"
+        }
+      }
+    },
+    {
+      "id": "n_mark_agent",
+      "name": "MARK - Market Analyst",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [1280, -60],
+      "position": [
+        1280,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Agent 1 of 5. Extracts the raw structured trade/topic fields from the source message and assesses market context. Calm, data-first, disciplined \u2014 never invents a missing field.",
       "parameters": {
         "promptType": "define",
         "text": "={{ $json.raw_text }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You are the Tradosphere Signal OS extraction agent. You read one raw message from a trusted desk channel (Telegram, WhatsApp, or an approved API) and convert it into strict structured JSON. Output ONLY a single JSON object matching the schema — no commentary, no markdown fencing.\n\nCategories (pick exactly one): F&O, EQUITY, COMMODITY, IPO, SIP, MUTUAL_FUND, INVESTMENT, INSURANCE, LOAN, MARKET_UPDATE, EDUCATION, OTHER.\n\nCRITICAL RULE: you must NEVER invent a missing financial or trading parameter. If entry, stop_loss, a target, expiry, or any other field is not explicitly present in the source message, return null for it. Do not estimate, round, infer from a chart, or fill in a 'reasonable' number. A missing field is null, always — fabricating a price is the single worst failure mode of this system.\n\nSet is_signal to true only if the message is an actionable trade call or a genuine investment-relevant item (IPO, SIP, mutual fund note, insurance/loan product, market update, education note). Promotional spam, greetings, unrelated chatter, or messages with no identifiable instrument/topic get is_signal: false and category: OTHER.\n\nFor F&O/EQUITY/COMMODITY: action is BUY or SELL only if explicit or unambiguous (\"buy\"/\"long\" -> BUY, \"sell\"/\"short\" -> SELL); otherwise null. symbol is the ticker/instrument code as written (e.g. BANKNIFTY, RELIANCE). instrument is the human-readable name if it differs from symbol. exchange is NSE, BSE, or MCX only if stated, else null. targets is every target level mentioned, in the order given, as an empty array if none.\n\nnormalized_message is a clean, readable rewrite of the raw message — it must never add a fact that was not present in the original."
+          "systemMessage": "You are MARK, the Tradosphere Signal OS Market Analyst. Personality: calm, analytical, data-first, disciplined. You read one raw message from a trusted desk channel (Telegram, WhatsApp, or an approved API) and produce two things: (1) a strict structured extraction of every trade/topic field explicitly present, and (2) a short factual market-context note. Output ONLY a single JSON object matching the schema \u2014 no commentary, no markdown fencing.\n\nCategories (pick exactly one): F&O, EQUITY, COMMODITY, IPO, SIP, MUTUAL_FUND, INVESTMENT, INSURANCE, LOAN, MARKET_UPDATE, EDUCATION, OTHER.\n\nCRITICAL RULE: you must NEVER invent a missing financial or trading parameter. If entry, stop_loss, a target, expiry, or any other field is not explicitly present in the source message, return null for it. Do not estimate, round, infer from a chart, or fill in a 'reasonable' number. A missing field is null, always \u2014 fabricating a price is the single worst failure mode of this system.\n\nSet is_signal to true only if the message is an actionable trade call or a genuine investment-relevant item (IPO, SIP, mutual fund note, insurance/loan product, market update, education note). Promotional spam, greetings, unrelated chatter, or messages with no identifiable instrument/topic get is_signal: false and category: OTHER.\n\nFor F&O/EQUITY/COMMODITY: action is BUY or SELL only if explicit or unambiguous (\"buy\"/\"long\" -> BUY, \"sell\"/\"short\" -> SELL); otherwise null. symbol is the ticker/instrument code as written (e.g. BANKNIFTY, RELIANCE). instrument is the human-readable name if it differs from symbol. exchange is NSE, BSE, or MCX only if stated, else null. targets is every target level mentioned, in the order given, as an empty array if none.\n\nmarket_context is 1-3 sentences describing ONLY the market structure/context actually present in the message (e.g. 'Source cites BANKNIFTY near 51000 resistance' ) \u2014 never add outside market knowledge you were not given. source_vs_analysis_note must explicitly separate what the source literally said from anything you inferred; if you inferred nothing, say so."
         }
       }
     },
     {
-      "id": "n18",
-      "name": "Groq Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
-      "typeVersion": 1,
-      "position": [1160, 180],
+      "id": "n_mark_parser",
+      "name": "MARK Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1400,
+        -240
+      ],
       "parameters": {
-        "model": "openai/gpt-oss-120b",
-        "options": { "temperature": 0.1, "maxTokensToSample": 4096 }
-      },
-      "credentials": {
-        "groqApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Groq" }
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"is_signal\":{\"type\":\"boolean\"},\"category\":{\"type\":\"string\",\"enum\":[\"F&O\",\"EQUITY\",\"COMMODITY\",\"IPO\",\"SIP\",\"MUTUAL_FUND\",\"INVESTMENT\",\"INSURANCE\",\"LOAN\",\"MARKET_UPDATE\",\"EDUCATION\",\"OTHER\"]},\"instrument\":{\"type\":[\"string\",\"null\"]},\"symbol\":{\"type\":[\"string\",\"null\"]},\"exchange\":{\"type\":[\"string\",\"null\"]},\"action\":{\"type\":[\"string\",\"null\"],\"enum\":[\"BUY\",\"SELL\",null]},\"entry\":{\"type\":[\"number\",\"null\"]},\"entry_low\":{\"type\":[\"number\",\"null\"]},\"entry_high\":{\"type\":[\"number\",\"null\"]},\"stop_loss\":{\"type\":[\"number\",\"null\"]},\"targets\":{\"type\":\"array\",\"items\":{\"type\":\"number\"}},\"expiry\":{\"type\":[\"string\",\"null\"]},\"timeframe\":{\"type\":[\"string\",\"null\"]},\"market_context\":{\"type\":\"string\"},\"source_vs_analysis_note\":{\"type\":\"string\"}},\"required\":[\"is_signal\",\"category\",\"market_context\"]}"
       }
     },
     {
-      "id": "n19",
-      "name": "Structured Output Schema",
+      "id": "n_muse_agent",
+      "name": "MUSE - Strategy Analyst",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1560,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Agent 2 of 5. Analyzes the strategy/setup MARK extracted. Creative but disciplined, scenario-oriented, never manufactures missing entry/target/price data.",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify({ raw_text: $('Insert Raw Message').item.json.raw_text, mark_extraction: $('MARK - Market Analyst').item.json.output }) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are MUSE, the Tradosphere Signal OS Strategy Analyst. Personality: creative but disciplined, scenario-oriented, never promotional. You receive the raw source text plus MARK's structured extraction (as JSON in the input). Analyze the strategy/setup the signal describes and lay out the scenarios and conditions that are actually implied by what was provided. Output ONLY a single JSON object matching the schema \u2014 no commentary, no markdown fencing.\n\nCRITICAL RULE: never manufacture a missing entry, stop-loss, target, or any other price/parameter that MARK returned as null. If MARK found no entry, your strategy_analysis discusses the setup qualitatively (e.g. 'no explicit entry given; the call assumes an immediate market move') rather than inventing one. Do not contradict MARK's extracted numbers \u2014 analyze them.\n\nstrategy_analysis is a clear paragraph explaining the setup/strategy as described. scenarios is an array of short scenario strings describing plausible outcomes/conditions (e.g. 'If BANKNIFTY holds above entry, target levels are in play'). If is_signal was false or there is no real strategy to analyze, scenarios can be empty and strategy_analysis should say so plainly. missing_data_note explicitly lists which fields were not provided by the source and were therefore not analyzed further, or null if nothing relevant is missing."
+        }
+      }
+    },
+    {
+      "id": "n_muse_parser",
+      "name": "MUSE Output Schema",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
-      "position": [1400, 180],
+      "position": [
+        1680,
+        -240
+      ],
       "parameters": {
         "schemaType": "manual",
-        "inputSchema": "{\"type\":\"object\",\"properties\":{\"is_signal\":{\"type\":\"boolean\"},\"category\":{\"type\":\"string\",\"enum\":[\"F&O\",\"EQUITY\",\"COMMODITY\",\"IPO\",\"SIP\",\"MUTUAL_FUND\",\"INVESTMENT\",\"INSURANCE\",\"LOAN\",\"MARKET_UPDATE\",\"EDUCATION\",\"OTHER\"]},\"instrument\":{\"type\":[\"string\",\"null\"]},\"symbol\":{\"type\":[\"string\",\"null\"]},\"exchange\":{\"type\":[\"string\",\"null\"]},\"action\":{\"type\":[\"string\",\"null\"],\"enum\":[\"BUY\",\"SELL\",null]},\"entry\":{\"type\":[\"number\",\"null\"]},\"stop_loss\":{\"type\":[\"number\",\"null\"]},\"targets\":{\"type\":\"array\",\"items\":{\"type\":\"number\"}},\"expiry\":{\"type\":[\"string\",\"null\"]},\"timeframe\":{\"type\":[\"string\",\"null\"]},\"confidence\":{\"type\":[\"number\",\"null\"]},\"rationale\":{\"type\":[\"string\",\"null\"]},\"normalized_message\":{\"type\":\"string\"}},\"required\":[\"is_signal\",\"category\",\"normalized_message\"]}"
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"strategy_analysis\":{\"type\":\"string\"},\"scenarios\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"missing_data_note\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"strategy_analysis\",\"scenarios\"]}"
+      }
+    },
+    {
+      "id": "n_echo_agent",
+      "name": "ECHO - Signal Validator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1840,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Agent 3 of 5. Skeptical, conservative, verification-focused. Can flag or recommend rejection of the signal. Detects missing fields and contradictions between MARK and MUSE.",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify({ raw_text: $('Insert Raw Message').item.json.raw_text, mark_extraction: $('MARK - Market Analyst').item.json.output, muse_analysis: $('MUSE - Strategy Analyst').item.json.output }) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are ECHO, the Tradosphere Signal OS Signal Validator. Personality: skeptical, conservative, verification-focused. You receive the raw source text, MARK's extraction, and MUSE's strategy analysis (as JSON in the input). Your job is to validate completeness, detect contradictions, flag suspicious or unusable input, and distinguish the source's own claims from what MARK/MUSE inferred. Output ONLY a single JSON object matching the schema \u2014 no commentary, no markdown fencing.\n\nvalidation_status is 'rejected' only for genuinely unusable input (empty/garbage text, pure spam with no identifiable topic, or internally contradictory numbers e.g. entry equal to stop-loss). Use 'flagged' when the signal is usable but has real concerns worth surfacing (e.g. a trade category with no direction, an unusually wide target spread, ambiguous instrument). Use 'passed' when the extraction is clean and internally consistent, even if some optional fields are null \u2014 nulls are expected and not themselves a flag.\n\nvalidation_flags is an array of short, specific concern strings (empty array if none). contradictions lists any specific inconsistency between MARK's and MUSE's outputs, or within MARK's own extraction (empty array if none). completeness_ok is true only if every field a trade category requires (symbol, and for F&O/EQUITY/COMMODITY, action) is present. is_duplicate_suspected is your own textual judgment only (e.g. this reads like a repost) \u2014 you do not have access to the database fingerprint check that runs separately downstream. reject_reason is a one-sentence reason when validation_status is 'rejected', else null."
+        }
+      }
+    },
+    {
+      "id": "n_echo_parser",
+      "name": "ECHO Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1960,
+        -240
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"validation_status\":{\"type\":\"string\",\"enum\":[\"passed\",\"flagged\",\"rejected\"]},\"validation_flags\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"contradictions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"completeness_ok\":{\"type\":\"boolean\"},\"is_duplicate_suspected\":{\"type\":\"boolean\"},\"reject_reason\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"validation_status\",\"validation_flags\",\"completeness_ok\"]}"
+      }
+    },
+    {
+      "id": "n_scout_agent",
+      "name": "SCOUT - Intelligence Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2120,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Agent 4 of 5. Curious, investigative, concise. Organizes supporting context actually present in the payload; never fabricates external information.",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify({ raw_text: $('Insert Raw Message').item.json.raw_text, channel: $('Insert Raw Message').item.json.channel, sender: $('Merge All Sources').item.json.sender, mark_extraction: $('MARK - Market Analyst').item.json.output, muse_analysis: $('MUSE - Strategy Analyst').item.json.output, echo_validation: $('ECHO - Signal Validator').item.json.output }) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are SCOUT, the Tradosphere Signal OS Intelligence/Context Agent. Personality: curious, investigative, concise. You receive the raw text, the source channel/sender metadata, and the outputs of MARK, MUSE, and ECHO (as JSON in the input). Organize whatever supporting context is genuinely present (channel, sender, timing, category norms already stated elsewhere in the payload) into a short brief. Output ONLY a single JSON object matching the schema \u2014 no commentary, no markdown fencing.\n\nCRITICAL RULE: you have no access to live news, external market data, or anything outside the JSON you were given. Never fabricate outside context (no invented news events, no invented analyst opinions, no invented price history). If no useful supporting context exists beyond what MARK/MUSE/ECHO already captured, say so plainly rather than padding the response.\n\nintelligence_context is a short brief (1-4 sentences) organizing the source/channel/sender context that is actually available. source_reliability_note may note observable facts about the source (e.g. 'from a channel already registered as a signal source') but must never claim a track record or reliability rating you cannot support from the given data \u2014 null if nothing to add. unavailable_info_note explicitly states what relevant context (e.g. broader market data, related news) was NOT available to you, or null if not applicable."
+        }
+      }
+    },
+    {
+      "id": "n_scout_parser",
+      "name": "SCOUT Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        -240
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"intelligence_context\":{\"type\":\"string\"},\"source_reliability_note\":{\"type\":[\"string\",\"null\"]},\"unavailable_info_note\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"intelligence_context\"]}"
+      }
+    },
+    {
+      "id": "n_atlas_agent",
+      "name": "ATLAS - Final Verdict Coordinator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2400,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Agent 5 of 5. Senior, neutral, structured, conservative. Synthesizes MARK/MUSE/ECHO/SCOUT into the final dashboard-facing verdict. Does not blindly accept the other agents \u2014 must resolve conflicts explicitly and may downgrade processing_status even if MARK said is_signal: true.",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify({ raw_text: $('Insert Raw Message').item.json.raw_text, mark_extraction: $('MARK - Market Analyst').item.json.output, muse_analysis: $('MUSE - Strategy Analyst').item.json.output, echo_validation: $('ECHO - Signal Validator').item.json.output, scout_context: $('SCOUT - Intelligence Agent').item.json.output }) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are ATLAS, the Tradosphere Signal OS Final Verdict Coordinator. Personality: senior, neutral, structured, conservative. You receive the full output of MARK (extraction + market context), MUSE (strategy analysis), ECHO (validation) and SCOUT (intelligence context) as JSON in the input. Synthesize them into the single final structured verdict this system publishes. Output ONLY a single JSON object matching the schema \u2014 no commentary, no markdown fencing.\n\nYou do NOT blindly accept the other agents. If ECHO flagged contradictions or set validation_status to 'rejected', reflect that explicitly in processing_status and final_verdict rather than passing MARK's numbers through unexamined. Re-state (do not re-derive from scratch) MARK's extracted trade fields (symbol, action, entry, stop_loss, targets, etc.) exactly as MARK reported them \u2014 you are the synthesis layer, not a second extraction pass, so never introduce a number MARK did not report and never fill a null MARK left null.\n\nprocessing_status is 'published' when ECHO's validation_status is 'passed' or 'flagged' AND MARK's is_signal is true; it is 'quarantine_recommended' when ECHO's validation_status is 'rejected', or MARK's is_signal is false, or the extraction is otherwise unusable. confidence is a 0-100 number ONLY when there is genuine basis for it in the combined agent outputs (e.g. all fields present, no flags, source is explicit) \u2014 otherwise null; do not default to a round number like 50 or 70. final_verdict is 2-4 sentences: state the conclusion, explicitly resolve any conflict between agents, and preserve stated uncertainty rather than smoothing it over. risk_notes surfaces ECHO's flags and MUSE's missing_data_note in dashboard-readable form, or null if there is genuinely nothing to note. normalized_message is a clean, readable rewrite of the raw message that never adds a fact not present in the original."
+        }
+      }
+    },
+    {
+      "id": "n_atlas_parser",
+      "name": "ATLAS Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        2520,
+        -240
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"is_signal\":{\"type\":\"boolean\"},\"category\":{\"type\":\"string\",\"enum\":[\"F&O\",\"EQUITY\",\"COMMODITY\",\"IPO\",\"SIP\",\"MUTUAL_FUND\",\"INVESTMENT\",\"INSURANCE\",\"LOAN\",\"MARKET_UPDATE\",\"EDUCATION\",\"OTHER\"]},\"instrument\":{\"type\":[\"string\",\"null\"]},\"symbol\":{\"type\":[\"string\",\"null\"]},\"exchange\":{\"type\":[\"string\",\"null\"]},\"action\":{\"type\":[\"string\",\"null\"],\"enum\":[\"BUY\",\"SELL\",null]},\"entry\":{\"type\":[\"number\",\"null\"]},\"stop_loss\":{\"type\":[\"number\",\"null\"]},\"targets\":{\"type\":\"array\",\"items\":{\"type\":\"number\"}},\"expiry\":{\"type\":[\"string\",\"null\"]},\"timeframe\":{\"type\":[\"string\",\"null\"]},\"confidence\":{\"type\":[\"number\",\"null\"]},\"processing_status\":{\"type\":\"string\",\"enum\":[\"published\",\"quarantine_recommended\"]},\"final_verdict\":{\"type\":\"string\"},\"risk_notes\":{\"type\":[\"string\",\"null\"]},\"normalized_message\":{\"type\":\"string\"}},\"required\":[\"is_signal\",\"category\",\"processing_status\",\"final_verdict\",\"normalized_message\"]}"
       },
-      "notes": "Verify the exact parameter key (inputSchema vs jsonSchema) against your installed n8n version's node panel after import — the schema content itself is correct JSON Schema either way."
+      "notes": "Verify the exact parameter key (inputSchema vs jsonSchema) against your installed n8n version's node panel after import \u2014 the schema content itself is correct JSON Schema either way."
     },
     {
       "id": "n20",
-      "name": "Parse AI Output",
+      "name": "Aggregate Agent Outputs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1520, -60],
+      "position": [
+        2680,
+        -400
+      ],
+      "notesInFlow": true,
+      "notes": "Combines MARK/MUSE/ECHO/SCOUT/ATLAS into one record: ATLAS's synthesis is authoritative for processing_status/confidence/final_verdict, MARK's extraction is authoritative for the actual trade fields (ATLAS restates rather than re-derives them), ECHO's verdict drives validation_status/flags. Never trusts a single agent's is_signal alone.",
       "parameters": {
-        "jsCode": "const VALID_CATEGORIES = ['F&O','EQUITY','COMMODITY','IPO','SIP','MUTUAL_FUND','INVESTMENT','INSURANCE','LOAN','MARKET_UPDATE','EDUCATION','OTHER'];\nconst TRADE_CATEGORIES = ['F&O','EQUITY','COMMODITY'];\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\n\nconst out = [];\nfor (const item of $input.all()) {\n  const rm = $('Insert Raw Message').item.json;\n  const isTest = $('Merge All Sources').item.json.is_test === true;\n  const raw = item.json.output ?? item.json;\n\n  let p;\n  try {\n    p = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  } catch (e) {\n    p = { is_signal: false, category: 'OTHER', normalized_message: rm.raw_text, _parse_error: `AI output was not valid JSON: ${e.message}` };\n  }\n\n  const category = VALID_CATEGORIES.includes(p.category) ? p.category : 'OTHER';\n  const isTradeCategory = TRADE_CATEGORIES.includes(category);\n  const action = (p.action === 'BUY' || p.action === 'SELL') ? p.action : null;\n  const targets = Array.isArray(p.targets) ? p.targets.map(num).filter((v) => v !== null) : [];\n  const entry = num(p.entry);\n  const stopLoss = num(p.stop_loss);\n  const confidence = num(p.confidence);\n\n  let validationReason = null;\n  if (p._parse_error) validationReason = p._parse_error;\n  else if (p.is_signal !== true) validationReason = 'AI classified this as not a signal.';\n  else if (!p.symbol) validationReason = 'No symbol/instrument identified.';\n  else if (isTradeCategory && !action) validationReason = 'Trade category but no clear BUY/SELL action.';\n  else if (entry !== null && stopLoss !== null && entry === stopLoss) validationReason = 'Entry and stop-loss are identical.';\n  else if (confidence !== null && (confidence < 0 || confidence > 100)) validationReason = 'Confidence out of range.';\n  const valid = validationReason === null;\n\n  const today = new Date().toISOString().slice(0, 10);\n  const fingerprintSource = [category, p.symbol, action, entry, stopLoss, targets.join(',')]\n    .map((v) => (v === null || v === undefined) ? '' : String(v))\n    .join('|')\n    .toUpperCase();\n  const fingerprint = `${today}|${fingerprintSource}`;\n\n  out.push({\n    json: {\n      valid,\n      validation_reason: validationReason,\n      category,\n      is_trade_category: isTradeCategory,\n      instrument: p.instrument ?? null,\n      symbol: p.symbol ?? null,\n      exchange: p.exchange ?? null,\n      action,\n      entry,\n      stop_loss: stopLoss,\n      target_1: targets[0] ?? null,\n      target_2: targets[1] ?? null,\n      target_3: targets[2] ?? null,\n      expiry: p.expiry ?? null,\n      timeframe: p.timeframe ?? null,\n      confidence,\n      rationale: p.rationale ?? null,\n      raw_message: rm.raw_text,\n      normalized_message: p.normalized_message ?? rm.raw_text,\n      fingerprint,\n      raw_message_id: rm.id,\n      source_id: rm.source_id,\n      channel: rm.channel,\n      source_message_id: rm.external_message_id,\n      source_timestamp: rm.received_at,\n      is_test: isTest\n    }\n  });\n}\nreturn out;"
+        "jsCode": "const VALID_CATEGORIES = ['F&O','EQUITY','COMMODITY','IPO','SIP','MUTUAL_FUND','INVESTMENT','INSURANCE','LOAN','MARKET_UPDATE','EDUCATION','OTHER'];\nconst TRADE_CATEGORIES = ['F&O','EQUITY','COMMODITY'];\nconst num = (v) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst asObj = (raw, label, errors) => {\n  if (raw === null || raw === undefined) { errors.push(`${label} produced no output.`); return {}; }\n  if (typeof raw === 'object') return raw;\n  try { return JSON.parse(raw); }\n  catch (e) { errors.push(`${label} output was not valid JSON: ${e.message}`); return {}; }\n};\n\nconst out = [];\nfor (const item of $input.all()) {\n  const rm = $('Insert Raw Message').item.json;\n  const isTest = $('Merge All Sources').item.json.is_test === true;\n  const parseErrors = [];\n\n  const mark = asObj($('MARK - Market Analyst').item.json.output, 'MARK', parseErrors);\n  const muse = asObj($('MUSE - Strategy Analyst').item.json.output, 'MUSE', parseErrors);\n  const echo = asObj($('ECHO - Signal Validator').item.json.output, 'ECHO', parseErrors);\n  const scout = asObj($('SCOUT - Intelligence Agent').item.json.output, 'SCOUT', parseErrors);\n  const atlas = asObj($('ATLAS - Final Verdict Coordinator').item.json.output, 'ATLAS', parseErrors);\n\n  const category = VALID_CATEGORIES.includes(atlas.category) ? atlas.category : (VALID_CATEGORIES.includes(mark.category) ? mark.category : 'OTHER');\n  const isTradeCategory = TRADE_CATEGORIES.includes(category);\n  const action = (mark.action === 'BUY' || mark.action === 'SELL') ? mark.action : null;\n  const targets = Array.isArray(mark.targets) ? mark.targets.map(num).filter((v) => v !== null) : [];\n  const entry = num(mark.entry);\n  const stopLoss = num(mark.stop_loss);\n  const confidence = num(atlas.confidence);\n  const isSignal = mark.is_signal === true && atlas.is_signal !== false;\n  const echoStatus = ['passed', 'flagged', 'rejected'].includes(echo.validation_status) ? echo.validation_status : null;\n  const validationFlags = Array.isArray(echo.validation_flags) ? echo.validation_flags : [];\n\n  let validationReason = null;\n  if (parseErrors.length) validationReason = parseErrors.join(' ');\n  else if (!isSignal) validationReason = 'Agents classified this as not a signal.';\n  else if (echoStatus === 'rejected') validationReason = echo.reject_reason || 'ECHO rejected this signal during validation.';\n  else if (atlas.processing_status === 'quarantine_recommended') validationReason = atlas.final_verdict || 'ATLAS recommended quarantine.';\n  else if (isTradeCategory && !mark.symbol) validationReason = 'No symbol/instrument identified.';\n  else if (isTradeCategory && !action) validationReason = 'Trade category but no clear BUY/SELL action.';\n  else if (entry !== null && stopLoss !== null && entry === stopLoss) validationReason = 'Entry and stop-loss are identical.';\n  else if (confidence !== null && (confidence < 0 || confidence > 100)) validationReason = 'Confidence out of range.';\n  const valid = validationReason === null;\n\n  const today = new Date().toISOString().slice(0, 10);\n  const fingerprintSource = [category, mark.symbol, action, entry, stopLoss, targets.join(',')]\n    .map((v) => (v === null || v === undefined) ? '' : String(v))\n    .join('|')\n    .toUpperCase();\n  const fingerprint = `${today}|${fingerprintSource}`;\n\n  out.push({\n    json: {\n      valid,\n      validation_reason: validationReason,\n      category,\n      is_trade_category: isTradeCategory,\n      instrument: mark.instrument ?? null,\n      symbol: mark.symbol ?? null,\n      exchange: mark.exchange ?? null,\n      action,\n      entry,\n      stop_loss: stopLoss,\n      target_1: targets[0] ?? null,\n      target_2: targets[1] ?? null,\n      target_3: targets[2] ?? null,\n      expiry: mark.expiry ?? null,\n      timeframe: mark.timeframe ?? null,\n      confidence,\n      rationale: atlas.final_verdict ?? null,\n      risk_note: atlas.risk_notes ?? null,\n      market_context: mark.market_context ?? null,\n      validation_status: echoStatus,\n      validation_flags: validationFlags,\n      agent_outputs: { mark, muse, echo, scout, atlas },\n      raw_message: rm.raw_text,\n      normalized_message: atlas.normalized_message ?? rm.raw_text,\n      fingerprint,\n      raw_message_id: rm.id,\n      source_id: rm.source_id,\n      channel: rm.channel,\n      source_message_id: rm.external_message_id,\n      source_timestamp: rm.received_at,\n      is_test: isTest\n    }\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n_update_raw_analysis",
+      "name": "Update Raw Message AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2900,
+        -400
+      ],
+      "notes": "Calls public.update_raw_message_ai_analysis (0031_signal_os_multi_agent_analysis.sql) so the full 5-agent payload is persisted on raw_signal_messages even if this message later gets quarantined or marked duplicate \u2014 the audit trail must not depend on reaching Publish Signal.",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/update_raw_message_ai_analysis",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $json.raw_message_id, p_normalized_text: $json.normalized_message, p_category: $json.category, p_confidence: $json.confidence, p_agent_outputs: $json.agent_outputs }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -307,16 +699,26 @@
       "name": "Validation Passed",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1760, -60],
+      "position": [
+        1760,
+        -60
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.valid }}",
+              "leftValue": "={{ $('Aggregate Agent Outputs').item.json.valid }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -329,7 +731,13 @@
       "name": "Quarantine Invalid Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2000, 140],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2000,
+        140
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/quarantine_raw_message",
@@ -337,11 +745,14 @@
         "nodeCredentialType": "supabaseApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $json.raw_message_id, p_reason: $json.validation_reason }) }}",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $('Aggregate Agent Outputs').item.json.raw_message_id, p_reason: $('Aggregate Agent Outputs').item.json.validation_reason }) }}",
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -349,7 +760,10 @@
       "name": "Quarantined Invalid",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2240, 140],
+      "position": [
+        2240,
+        140
+      ],
       "parameters": {}
     },
     {
@@ -357,7 +771,13 @@
       "name": "Check Duplicate Fingerprint",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2000, -180],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2000,
+        -180
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/check_signal_fingerprint_duplicate",
@@ -365,12 +785,15 @@
         "nodeCredentialType": "supabaseApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_fingerprint: $json.fingerprint }) }}",
+        "jsonBody": "={{ JSON.stringify({ p_fingerprint: $('Aggregate Agent Outputs').item.json.fingerprint }) }}",
         "options": {}
       },
-      "notes": "Calls public.check_signal_fingerprint_duplicate (0027_signal_os_rpc_wrappers.sql), which returns table(is_duplicate boolean) — always exactly one row, so the output item's is_duplicate field is safe to read directly.",
+      "notes": "Calls public.check_signal_fingerprint_duplicate (0027_signal_os_rpc_wrappers.sql), which returns table(is_duplicate boolean) \u2014 always exactly one row, so the output item's is_duplicate field is safe to read directly.",
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -378,16 +801,26 @@
       "name": "Already Published",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2240, -180],
+      "position": [
+        2240,
+        -180
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json.is_duplicate }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -400,7 +833,13 @@
       "name": "Mark Duplicate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, -60],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2480,
+        -60
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/mark_raw_message_duplicate",
@@ -408,11 +847,14 @@
         "nodeCredentialType": "supabaseApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $('Parse AI Output').item.json.raw_message_id }) }}",
+        "jsonBody": "={{ JSON.stringify({ p_raw_message_id: $('Aggregate Agent Outputs').item.json.raw_message_id }) }}",
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -420,7 +862,10 @@
       "name": "Duplicate Skipped",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2720, -60],
+      "position": [
+        2720,
+        -60
+      ],
       "parameters": {}
     },
     {
@@ -428,7 +873,13 @@
       "name": "Publish Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, -300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2480,
+        -300
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/ingest_classified_signal",
@@ -436,12 +887,15 @@
         "nodeCredentialType": "supabaseApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_source_id: $('Parse AI Output').item.json.source_id, p_raw_message_id: $('Parse AI Output').item.json.raw_message_id, p_category: $('Parse AI Output').item.json.category, p_symbol: $('Parse AI Output').item.json.symbol, p_instrument_name: $('Parse AI Output').item.json.instrument || null, p_exchange: $('Parse AI Output').item.json.exchange || null, p_instrument_kind: $('Parse AI Output').item.json.category === 'EQUITY' ? 'EQUITY' : 'INDEX_OPTION', p_direction: $('Parse AI Output').item.json.action || null, p_entry_price: $('Parse AI Output').item.json.entry, p_stop_loss: $('Parse AI Output').item.json.stop_loss, p_target_1: $('Parse AI Output').item.json.target_1, p_target_2: $('Parse AI Output').item.json.target_2, p_target_3: $('Parse AI Output').item.json.target_3, p_expiry: $('Parse AI Output').item.json.expiry || null, p_timeframe: $('Parse AI Output').item.json.timeframe || null, p_confidence: $('Parse AI Output').item.json.confidence, p_rationale: $('Parse AI Output').item.json.rationale || null, p_raw_message: $('Parse AI Output').item.json.raw_message, p_normalized_message: $('Parse AI Output').item.json.normalized_message, p_source_message_id: $('Parse AI Output').item.json.source_message_id || null, p_source_timestamp: $('Parse AI Output').item.json.source_timestamp, p_fingerprint: $('Parse AI Output').item.json.fingerprint, p_ai_model: 'groq/openai-gpt-oss-120b' }) }}",
+        "jsonBody": "={{ JSON.stringify({ p_source_id: $('Aggregate Agent Outputs').item.json.source_id, p_raw_message_id: $('Aggregate Agent Outputs').item.json.raw_message_id, p_category: $('Aggregate Agent Outputs').item.json.category, p_symbol: $('Aggregate Agent Outputs').item.json.symbol, p_instrument_name: $('Aggregate Agent Outputs').item.json.instrument || null, p_exchange: $('Aggregate Agent Outputs').item.json.exchange || null, p_instrument_kind: $('Aggregate Agent Outputs').item.json.category === 'EQUITY' ? 'EQUITY' : 'INDEX_OPTION', p_direction: $('Aggregate Agent Outputs').item.json.action || null, p_entry_price: $('Aggregate Agent Outputs').item.json.entry, p_stop_loss: $('Aggregate Agent Outputs').item.json.stop_loss, p_target_1: $('Aggregate Agent Outputs').item.json.target_1, p_target_2: $('Aggregate Agent Outputs').item.json.target_2, p_target_3: $('Aggregate Agent Outputs').item.json.target_3, p_expiry: $('Aggregate Agent Outputs').item.json.expiry || null, p_timeframe: $('Aggregate Agent Outputs').item.json.timeframe || null, p_confidence: $('Aggregate Agent Outputs').item.json.confidence, p_rationale: $('Aggregate Agent Outputs').item.json.rationale || null, p_raw_message: $('Aggregate Agent Outputs').item.json.raw_message, p_normalized_message: $('Aggregate Agent Outputs').item.json.normalized_message, p_source_message_id: $('Aggregate Agent Outputs').item.json.source_message_id || null, p_source_timestamp: $('Aggregate Agent Outputs').item.json.source_timestamp, p_fingerprint: $('Aggregate Agent Outputs').item.json.fingerprint, p_ai_model: 'groq/openai-gpt-oss-120b', p_agent_outputs: $('Aggregate Agent Outputs').item.json.agent_outputs, p_market_context: $('Aggregate Agent Outputs').item.json.market_context || null, p_validation_status: $('Aggregate Agent Outputs').item.json.validation_status || null, p_validation_flags: $('Aggregate Agent Outputs').item.json.validation_flags, p_risk_note: $('Aggregate Agent Outputs').item.json.risk_note || null }) }}",
         "options": {}
       },
-      "notes": "Calls public.ingest_classified_signal (0019_signal_os.sql). It returns the full signals row as a single JSON object (not an array), so $json.id below is the new signal's id.",
+      "notes": "Calls public.ingest_classified_signal (0031_signal_os_multi_agent_analysis.sql 30-arg overload). It returns the full signals row as a single JSON object (not an array), so $json.id below is the new signal's id. Requires migration 0031 to be applied \u2014 see 'Credentials Needed' note.",
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -449,16 +903,26 @@
       "name": "Test Mode Check",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2720, -300],
+      "position": [
+        2720,
+        -300
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $('Parse AI Output').item.json.is_test }}",
+              "leftValue": "={{ $('Aggregate Agent Outputs').item.json.is_test }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -471,8 +935,11 @@
       "name": "Test Mode Distribution Skipped",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2960, -440],
-      "notes": "Test-mode signals are published to Supabase (so the DB/dedup/validation stages are genuinely exercised) but never sent to the real Telegram/WhatsApp channels. Each node upstream of here shows green/red in the execution view — that per-node status is the health/test result for that stage.",
+      "position": [
+        2960,
+        -440
+      ],
+      "notes": "Test-mode signals are published to Supabase (so the DB/dedup/validation stages are genuinely exercised) but never sent to the real Telegram/WhatsApp channels. Each node upstream of here shows green/red in the execution view \u2014 that per-node status is the health/test result for that stage.",
       "parameters": {}
     },
     {
@@ -480,17 +947,26 @@
       "name": "Send To Telegram",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2960, -240],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2960,
+        -240
+      ],
       "continueOnFail": true,
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $('Workflow Config').item.json.telegramChannelId }}",
-        "text": "={{ 'New ' + $('Parse AI Output').item.json.category + ' signal: ' + ($('Parse AI Output').item.json.symbol || '') + ($('Parse AI Output').item.json.action ? ' — ' + $('Parse AI Output').item.json.action : '') }}",
+        "text": "={{ 'New ' + $('Aggregate Agent Outputs').item.json.category + ' signal: ' + ($('Aggregate Agent Outputs').item.json.symbol || '') + ($('Aggregate Agent Outputs').item.json.action ? ' \u2014 ' + $('Aggregate Agent Outputs').item.json.action : '') }}",
         "additionalFields": {}
       },
       "credentials": {
-        "telegramApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Signal Bot" }
+        "telegramApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Signal Bot"
+        }
       }
     },
     {
@@ -498,7 +974,13 @@
       "name": "Log Distribution Telegram",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3200, -240],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        3200,
+        -240
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/log_distribution",
@@ -510,7 +992,10 @@
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -518,17 +1003,26 @@
       "name": "Send To WhatsApp",
       "type": "n8n-nodes-base.whatsApp",
       "typeVersion": 1,
-      "position": [2960, -100],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2960,
+        -100
+      ],
       "continueOnFail": true,
-      "notes": "Verify exact parameter field names against your installed n8n version — the WhatsApp send node's schema has changed across releases. Sends to the business-managed relay for the 3 WhatsApp source groups (see Credentials Needed note).",
+      "notes": "Verify exact parameter field names against your installed n8n version \u2014 the WhatsApp send node's schema has changed across releases. Sends to the business-managed relay for the 3 WhatsApp source groups (see Credentials Needed note).",
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Workflow Config').item.json.whatsappPhoneNumberId }}",
         "recipientPhoneNumber": "={{ $('Workflow Config').item.json.whatsappDistributionNumber }}",
-        "textBody": "={{ 'New ' + $('Parse AI Output').item.json.category + ' signal: ' + ($('Parse AI Output').item.json.symbol || '') + ($('Parse AI Output').item.json.action ? ' — ' + $('Parse AI Output').item.json.action : '') }}"
+        "textBody": "={{ 'New ' + $('Aggregate Agent Outputs').item.json.category + ' signal: ' + ($('Aggregate Agent Outputs').item.json.symbol || '') + ($('Aggregate Agent Outputs').item.json.action ? ' \u2014 ' + $('Aggregate Agent Outputs').item.json.action : '') }}"
       },
       "credentials": {
-        "whatsAppApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere WhatsApp Business Cloud" }
+        "whatsAppApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere WhatsApp Business Cloud"
+        }
       }
     },
     {
@@ -536,7 +1030,13 @@
       "name": "Log Distribution WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3200, -100],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        3200,
+        -100
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/log_distribution",
@@ -548,7 +1048,10 @@
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -556,8 +1059,14 @@
       "name": "Log Distribution Dashboard",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2960, 60],
-      "notes": "The dashboard reads signals straight from Supabase, so a successful Publish Signal IS the dashboard distribution — this just records that explicitly for the audit trail.",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        2960,
+        60
+      ],
+      "notes": "The dashboard reads signals straight from Supabase, so a successful Publish Signal IS the dashboard distribution \u2014 this just records that explicitly for the audit trail.",
       "parameters": {
         "method": "POST",
         "url": "={{ $('Workflow Config').item.json.supabaseUrl }}/rest/v1/rpc/log_distribution",
@@ -569,7 +1078,10 @@
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     },
     {
@@ -577,7 +1089,10 @@
       "name": "Workflow Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [1280, 900],
+      "position": [
+        1280,
+        900
+      ],
       "parameters": {}
     },
     {
@@ -585,7 +1100,13 @@
       "name": "Log Workflow Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1520, 900],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1520,
+        900
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://bcjgfdwjmhfgkqglcasu.supabase.co/rest/v1/rpc/log_workflow_error",
@@ -597,67 +1118,521 @@
         "options": {}
       },
       "credentials": {
-        "supabaseApi": { "id": "PLACEHOLDER_SET_ON_IMPORT", "name": "Tradosphere Supabase — Production" }
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Tradosphere Supabase \u2014 Production"
+        }
       }
     }
   ],
   "connections": {
-    "Telegram Channels In": { "main": [[{ "node": "Normalize Telegram", "type": "main", "index": 0 }]] },
-    "WhatsApp Groups In": { "main": [[{ "node": "Normalize WhatsApp", "type": "main", "index": 0 }]] },
-    "Telegram MTProto In": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 4 }]] },
-    "SMC Poll Schedule": { "main": [[{ "node": "SMC Auto Trender API - Waiting For Access", "type": "main", "index": 0 }]] },
-    "SMC Auto Trender API - Waiting For Access": { "main": [[{ "node": "Normalize SMC API", "type": "main", "index": 0 }]] },
-    "Test Mode Trigger": { "main": [[{ "node": "Test Fixture Message", "type": "main", "index": 0 }]] },
-    "Normalize Telegram": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 0 }]] },
-    "Normalize WhatsApp": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 1 }]] },
-    "Normalize SMC API": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 2 }]] },
-    "Test Fixture Message": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 3 }]] },
-    "Merge All Sources": { "main": [[{ "node": "Workflow Config", "type": "main", "index": 0 }]] },
-    "Workflow Config": { "main": [[{ "node": "Insert Raw Message", "type": "main", "index": 0 }]] },
-    "Insert Raw Message": { "main": [[{ "node": "Source Registered", "type": "main", "index": 0 }]] },
-    "Source Registered": {
+    "Telegram Channels In": {
       "main": [
-        [{ "node": "AI Agent Extract And Classify", "type": "main", "index": 0 }],
-        [{ "node": "Quarantine Unregistered Source", "type": "main", "index": 0 }]
-      ]
-    },
-    "Quarantine Unregistered Source": { "main": [[{ "node": "Ignored Unregistered Source", "type": "main", "index": 0 }]] },
-    "Groq Model": { "ai_languageModel": [[{ "node": "AI Agent Extract And Classify", "type": "ai_languageModel", "index": 0 }]] },
-    "Structured Output Schema": { "ai_outputParser": [[{ "node": "AI Agent Extract And Classify", "type": "ai_outputParser", "index": 0 }]] },
-    "AI Agent Extract And Classify": { "main": [[{ "node": "Parse AI Output", "type": "main", "index": 0 }]] },
-    "Parse AI Output": { "main": [[{ "node": "Validation Passed", "type": "main", "index": 0 }]] },
-    "Validation Passed": {
-      "main": [
-        [{ "node": "Check Duplicate Fingerprint", "type": "main", "index": 0 }],
-        [{ "node": "Quarantine Invalid Message", "type": "main", "index": 0 }]
-      ]
-    },
-    "Quarantine Invalid Message": { "main": [[{ "node": "Quarantined Invalid", "type": "main", "index": 0 }]] },
-    "Check Duplicate Fingerprint": { "main": [[{ "node": "Already Published", "type": "main", "index": 0 }]] },
-    "Already Published": {
-      "main": [
-        [{ "node": "Mark Duplicate", "type": "main", "index": 0 }],
-        [{ "node": "Publish Signal", "type": "main", "index": 0 }]
-      ]
-    },
-    "Mark Duplicate": { "main": [[{ "node": "Duplicate Skipped", "type": "main", "index": 0 }]] },
-    "Publish Signal": { "main": [[{ "node": "Test Mode Check", "type": "main", "index": 0 }]] },
-    "Test Mode Check": {
-      "main": [
-        [{ "node": "Test Mode Distribution Skipped", "type": "main", "index": 0 }],
         [
-          { "node": "Send To Telegram", "type": "main", "index": 0 },
-          { "node": "Send To WhatsApp", "type": "main", "index": 0 },
-          { "node": "Log Distribution Dashboard", "type": "main", "index": 0 }
+          {
+            "node": "Normalize Telegram",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Send To Telegram": { "main": [[{ "node": "Log Distribution Telegram", "type": "main", "index": 0 }]] },
-    "Send To WhatsApp": { "main": [[{ "node": "Log Distribution WhatsApp", "type": "main", "index": 0 }]] },
-    "Workflow Error Trigger": { "main": [[{ "node": "Log Workflow Error", "type": "main", "index": 0 }]] }
+    "WhatsApp Groups In": {
+      "main": [
+        [
+          {
+            "node": "Normalize WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram MTProto In": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "SMC Poll Schedule": {
+      "main": [
+        [
+          {
+            "node": "SMC Auto Trender API - Waiting For Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMC Auto Trender API - Waiting For Access": {
+      "main": [
+        [
+          {
+            "node": "Normalize SMC API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Mode Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Fixture Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Telegram": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Normalize SMC API": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Test Fixture Message": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Insert Raw Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Raw Message": {
+      "main": [
+        [
+          {
+            "node": "Source Registered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Source Registered": {
+      "main": [
+        [
+          {
+            "node": "MARK - Market Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine Unregistered Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quarantine Unregistered Source": {
+      "main": [
+        [
+          {
+            "node": "Ignored Unregistered Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MARK Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "MARK - Market Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MUSE Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "MUSE - Strategy Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ECHO Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ECHO - Signal Validator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SCOUT Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SCOUT - Intelligence Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ATLAS Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ATLAS - Final Verdict Coordinator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MARK Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "MARK - Market Analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MUSE Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "MUSE - Strategy Analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ECHO Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "ECHO - Signal Validator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SCOUT Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "SCOUT - Intelligence Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ATLAS Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "ATLAS - Final Verdict Coordinator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MARK - Market Analyst": {
+      "main": [
+        [
+          {
+            "node": "MUSE - Strategy Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MUSE - Strategy Analyst": {
+      "main": [
+        [
+          {
+            "node": "ECHO - Signal Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ECHO - Signal Validator": {
+      "main": [
+        [
+          {
+            "node": "SCOUT - Intelligence Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SCOUT - Intelligence Agent": {
+      "main": [
+        [
+          {
+            "node": "ATLAS - Final Verdict Coordinator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ATLAS - Final Verdict Coordinator": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Agent Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Agent Outputs": {
+      "main": [
+        [
+          {
+            "node": "Update Raw Message AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Raw Message AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Validation Passed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Passed": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Fingerprint",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine Invalid Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quarantine Invalid Message": {
+      "main": [
+        [
+          {
+            "node": "Quarantined Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Fingerprint": {
+      "main": [
+        [
+          {
+            "node": "Already Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Published": {
+      "main": [
+        [
+          {
+            "node": "Mark Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publish Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Signal": {
+      "main": [
+        [
+          {
+            "node": "Test Mode Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Mode Check": {
+      "main": [
+        [
+          {
+            "node": "Test Mode Distribution Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send To Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send To WhatsApp",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Distribution Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send To Telegram": {
+      "main": [
+        [
+          {
+            "node": "Log Distribution Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send To WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log Distribution WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Workflow Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "pinData": {},
-  "meta": { "templateCredsSetupCompleted": false }
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
 }

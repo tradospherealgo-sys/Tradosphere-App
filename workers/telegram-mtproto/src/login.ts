@@ -13,16 +13,31 @@
 // credential the always-on worker (src/index.ts) uses afterwards so it never
 // has to ask for a code again. Guard it like a password — anyone with it is
 // logged in as you.
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { TelegramClient } from "teleproto";
 import { StringSession } from "teleproto/sessions/index.js";
 import input from "input";
 
-const apiId = Number(process.env.TELEGRAM_API_ID);
+// Resolve .env relative to this file (not process.cwd()), so `npm run login`
+// finds workers/telegram-mtproto/.env regardless of which directory it's
+// invoked from.
+loadEnv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+
+const apiIdRaw = process.env.TELEGRAM_API_ID;
 const apiHash = process.env.TELEGRAM_API_HASH;
 
-if (!apiId || !apiHash) {
+if (!apiIdRaw || !apiHash) {
   console.error("Set TELEGRAM_API_ID and TELEGRAM_API_HASH in .env first (from https://my.telegram.org/apps).");
+  process.exit(1);
+}
+
+const apiId = Number(apiIdRaw);
+if (!Number.isInteger(apiId) || apiId <= 0) {
+  console.error(
+    "TELEGRAM_API_ID in .env is not a valid number (it must be the numeric app id from https://my.telegram.org/apps — check it isn't still a placeholder)."
+  );
   process.exit(1);
 }
 

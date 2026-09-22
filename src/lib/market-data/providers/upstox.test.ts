@@ -1,8 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpstoxProvider } from "./upstox";
 import { __testing } from "./upstox";
 
 const { mapOhlcEntry, mapCandleRow, toNumber, toIsoFromEpochMs } = __testing;
+
+// A symbol containing "|" is treated by resolveInstrumentKey() as an
+// already-resolved instrument_key, so these HTTP-level tests never touch
+// Supabase — they exercise exactly the fetch/parse/error-handling path.
+const KEY = "NSE_INDEX|Nifty 50";
+
+function withToken<T>(run: () => Promise<T>): Promise<T> {
+  process.env.UPSTOX_ACCESS_TOKEN_TEST = "token-123";
+  return run().finally(() => {
+    delete process.env.UPSTOX_ACCESS_TOKEN_TEST;
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("UpstoxProvider.isConfigured", () => {
   it("is unconfigured with no access-token env var set", () => {
@@ -123,4 +139,138 @@ describe("toIsoFromEpochMs", () => {
     expect(toIsoFromEpochMs("nonsense")).toBeNull();
     expect(toIsoFromEpochMs(undefined)).toBeNull();
   });
+});
+
+describe("UpstoxProvider.getQuotes", () => {
+  it("returns [] when unconfigured (no token) without calling fetch", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST_UNSET");
+    expect(await provider.getQuotes(["NIFTY 50"])).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps a real NIFTY 50 quote on success", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            status: "success",
+            data: { [KEY]: { last_price: 24500.5, instrument_token: KEY, live_ohlc: {}, prev_ohlc: {} } },
+          }),
+        })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      const quotes = await provider.getQuotes([KEY]);
+      expect(quotes).toHaveLength(1);
+      expect(quotes[0].lastPrice).toBe(24500.5);
+    }));
+
+  it("returns [] on an empty data response rather than a fabricated quote", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "success", data: {} }) })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      expect(await provider.getQuotes([KEY])).toEqual([]);
+    }));
+
+  it("returns [] when Upstox rejects the (invalid/expired) token with 401", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      expect(await provider.getQuotes([KEY])).toEqual([]);
+    }));
+
+  it("returns [] rather than throwing when the Upstox API errors/is unreachable", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      await expect(provider.getQuotes([KEY])).resolves.toEqual([]);
+    }));
+});
+
+describe("UpstoxProvider.getHistoricalCandles", () => {
+  const from = new Date("2025-01-01T00:00:00Z");
+  const to = new Date("2025-01-31T00:00:00Z");
+
+  it("maps candles on success", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            data: { candles: [["2025-01-01T00:00:00+05:30", 100, 110, 95, 105, 5000, 0]] },
+          }),
+        })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      const candles = await provider.getHistoricalCandles(KEY, "1d", from, to);
+      expect(candles).toHaveLength(1);
+      expect(candles[0].close).toBe(105);
+    }));
+
+  it("returns [] on an empty candles array", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { candles: [] } }) })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      expect(await provider.getHistoricalCandles(KEY, "1d", from, to)).toEqual([]);
+    }));
+
+  it("returns [] rather than throwing on an Upstox API error", () =>
+    withToken(async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      expect(await provider.getHistoricalCandles(KEY, "1d", from, to)).toEqual([]);
+    }));
+});
+
+describe("UpstoxProvider.testConnection", () => {
+  it("reports not-configured without calling fetch", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST_UNSET");
+    const result = await provider.testConnection();
+    expect(result.ok).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes an expired/invalid token (401) from other failures", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 401,
+          json: async () => ({ status: "error", errors: [{ message: "Invalid token" }] }),
+        })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/401|token/i);
+    }));
+
+  it("reports ok:true with a real LTP on success", () =>
+    withToken(async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { [KEY]: { last_price: 24500.5 } } }),
+        })
+      );
+      const provider = new UpstoxProvider({}, "UPSTOX_ACCESS_TOKEN_TEST");
+      const result = await provider.testConnection();
+      expect(result.ok).toBe(true);
+      expect(result.message).toContain("24500.5");
+    }));
 });
