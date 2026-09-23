@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OptionChainProvider, OptionChainSnapshot, OptionLeg, ProviderTestResult } from "../types";
+import { resolveUnderlyingAlias } from "../underlying-aliases";
 
 /**
  * Upstox option-chain connector (official v2 REST API).
@@ -66,7 +67,9 @@ export class UpstoxOptionChainProvider implements OptionChainProvider {
 
     if (underlying.includes("|")) return underlying;
 
-    const cached = instrumentKeyCache.get(underlying);
+    const lookupSymbol = resolveUnderlyingAlias(underlying);
+
+    const cached = instrumentKeyCache.get(lookupSymbol);
     if (cached && Date.now() - cached.fetchedAt < INSTRUMENT_CACHE_TTL_MS) {
       return cached.key;
     }
@@ -76,13 +79,13 @@ export class UpstoxOptionChainProvider implements OptionChainProvider {
       const { data } = await admin
         .from("instruments")
         .select("provider_token")
-        .ilike("symbol", underlying)
+        .ilike("symbol", lookupSymbol)
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
 
       const key = data?.provider_token ?? null;
-      instrumentKeyCache.set(underlying, { key, fetchedAt: Date.now() });
+      instrumentKeyCache.set(lookupSymbol, { key, fetchedAt: Date.now() });
       return key;
     } catch {
       return null;
