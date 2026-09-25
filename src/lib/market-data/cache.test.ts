@@ -179,6 +179,67 @@ describe("CachedMarketDataProvider.getQuote", () => {
   });
 });
 
+describe("CachedMarketDataProvider circuit breaker", () => {
+  it("keeps hitting upstream through failures below the breaker threshold", async () => {
+    inner.throwTimes = 100;
+    await provider.getQuote("A");
+    await provider.getQuote("B");
+    // Two attempts (initial + retry) per call, none of them short-circuited.
+    expect(inner.quoteCalls).toBe(4);
+  });
+
+  it("opens after enough consecutive fully-failed calls and stops calling upstream", async () => {
+    inner.throwTimes = 100;
+    await provider.getQuote("A"); // failure 1 (2 attempts)
+    await provider.getQuote("B"); // failure 2 (2 attempts)
+    await provider.getQuote("C"); // failure 3 (2 attempts) -> breaker opens
+    expect(inner.quoteCalls).toBe(6);
+
+    expect(await provider.getQuote("D")).toBeNull();
+    expect(inner.quoteCalls).toBe(6); // short-circuited, no upstream call at all
+  });
+
+  it("closes again on the next success once the cooldown elapses", async () => {
+    // Only Date is faked: the breaker's cooldown check reads Date.now(), but
+    // withRetry's real 250ms backoff timer must still fire on its own so the
+    // getQuote calls above actually resolve.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      inner.throwTimes = 100;
+      await provider.getQuote("A");
+      await provider.getQuote("B");
+      await provider.getQuote("C"); // opens the breaker
+      expect(inner.quoteCalls).toBe(6);
+
+      expect(await provider.getQuote("D")).toBeNull();
+      expect(inner.quoteCalls).toBe(6); // still open, still short-circuited
+
+      vi.advanceTimersByTime(30_000);
+      inner.throwTimes = 0;
+      expect((await provider.getQuote("E"))?.lastPrice).toBe(100);
+      expect(inner.quoteCalls).toBe(7); // cooldown elapsed, upstream reached again
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is scoped per provider, not shared across every symbol globally", async () => {
+    // A different CachedMarketDataProvider instance (a different upstream
+    // provider) must not be tripped by another provider's failures.
+    const otherInner = new FakeProvider();
+    (otherInner as { name: string }).name = "other";
+    const otherProvider = new CachedMarketDataProvider(otherInner);
+
+    inner.throwTimes = 100;
+    await provider.getQuote("A");
+    await provider.getQuote("B");
+    await provider.getQuote("C"); // trips the "fake" breaker only
+
+    expect((await otherProvider.getQuote("A"))?.lastPrice).toBe(100);
+    expect(otherInner.quoteCalls).toBe(1);
+  });
+});
+
 describe("CachedMarketDataProvider.getQuotes", () => {
   it("asks upstream only for the symbols it does not already hold", async () => {
     await provider.getQuote("RELIANCE");

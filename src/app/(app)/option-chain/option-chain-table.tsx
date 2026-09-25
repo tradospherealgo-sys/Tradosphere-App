@@ -38,6 +38,10 @@ export function OptionChainTable({
   }
 
   const columns = compact ? 2 : 8;
+  // Compact mode has 5 data columns (2 + strike + 2) against full mode's 17
+  // (8 + strike + 8) — it needs a far smaller minimum width to actually fit
+  // a 360-412px phone instead of forcing the same wide horizontal scroll.
+  const cellPad = compact ? "px-2" : "px-3";
 
   return (
     <div>
@@ -52,20 +56,20 @@ export function OptionChainTable({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className={`w-full text-sm ${compact ? "min-w-[380px]" : "min-w-[760px]"}`}>
           <thead>
             <tr className="border-b border-border bg-surface-raised/40 text-xs text-text-faint">
-              <th colSpan={columns} className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-up">
+              <th colSpan={columns} className={`${cellPad} py-2 text-center font-semibold uppercase tracking-wide text-up`}>
                 Calls
               </th>
-              <th className="px-3 py-2 text-center font-normal">Strike</th>
-              <th colSpan={columns} className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-down">
+              <th className={`${cellPad} py-2 text-center font-normal`}>Strike</th>
+              <th colSpan={columns} className={`${cellPad} py-2 text-center font-semibold uppercase tracking-wide text-down`}>
                 Puts
               </th>
             </tr>
             <tr className="border-b border-border bg-surface-raised/40 text-xs text-text-faint">
               {sideHeaders(compact, "CE")}
-              <th className="px-3 py-2 font-normal" />
+              <th className={`${cellPad} py-2 font-normal`} />
               {sideHeaders(compact, "PE")}
             </tr>
           </thead>
@@ -82,7 +86,7 @@ export function OptionChainTable({
                 >
                   {sideCells(entry.CE, compact, "CE", atmStrike, strike, maxLegOi)}
                   <td
-                    className={`px-3 py-2 text-center font-medium ${
+                    className={`${cellPad} py-2 text-center font-medium ${
                       isAtm ? "text-accent-strong" : "text-text"
                     }`}
                   >
@@ -104,8 +108,9 @@ const FULL_LABELS = ["OI", "ΔOI", "Vol", "IV", "Δ", "Bid", "Ask", "LTP"];
 function sideHeaders(compact: boolean, side: "CE" | "PE") {
   const labels = compact ? ["OI", "LTP"] : FULL_LABELS;
   const ordered = side === "CE" ? labels : [...labels].reverse();
+  const cellPad = compact ? "px-2" : "px-3";
   return ordered.map((label) => (
-    <th key={`${side}-${label}`} className="px-3 py-2 text-right font-normal">
+    <th key={`${side}-${label}`} className={`${cellPad} py-2 text-right font-normal`}>
       {label}
     </th>
   ));
@@ -155,11 +160,12 @@ function sideCells(
       ];
 
   const ordered = side === "CE" ? cells : [...cells].reverse();
+  const cellPad = compact ? "px-2" : "px-3";
 
   return ordered.map((cell, index) => (
     <td
       key={`${side}-${index}`}
-      className={`relative px-3 py-2 text-right ${itm ? "bg-surface-raised" : ""}`}
+      className={`relative ${cellPad} py-2 text-right ${itm ? "bg-surface-raised" : ""}`}
     >
       {cell.oiFraction !== undefined ? (
         <span

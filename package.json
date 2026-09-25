@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "test:db": "./scripts/verify-db.sh",
     "test:e2e:local": "./scripts/e2e-local.sh",
-    "bootstrap:admin": "node scripts/bootstrap-admin.mjs"
+    "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
+    "refresh:upstox-token": "node scripts/refresh-upstox-token.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

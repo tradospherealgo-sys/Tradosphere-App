@@ -16,6 +16,12 @@ import { E2E_SYMBOL, E2E_FIXTURE_PRICE } from "../global-setup";
  * Requires the seeded environment (E2E_SEED=1, see e2e/global-setup.ts) and a
  * server started with MARKET_DATA_TEST_FIXTURE so orders have a deterministic
  * price. Self-skips otherwise, so `npm run test:e2e` stays green without it.
+ *
+ * Unconditionally skipped for now: Paper Trading's order-entry UI (the order
+ * ticket, order book, #order-* fields this file drives) is not rendered on
+ * /paper-trading while the feature is deferred (see that page's own
+ * comment) — the engine and RPCs underneath are untouched, but there is no
+ * UI left for this file to drive. Re-enable once a paper-trading UI ships.
  */
 
 const EMAIL = process.env.E2E_TEST_EMAIL;
@@ -26,6 +32,10 @@ const QTY = 5;
 const MODIFIED_QTY = 2;
 
 test.describe("paper-trading order lifecycle", () => {
+  test.skip(
+    true,
+    "Paper Trading UI is not exposed yet (deferred feature) — no order-entry UI for this suite to drive."
+  );
   test.skip(
     !SEEDED || !EMAIL || !PASSWORD,
     "Requires a seeded backend: E2E_SEED=1 plus E2E_TEST_EMAIL/E2E_TEST_PASSWORD."

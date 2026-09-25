@@ -41,23 +41,6 @@ export default async function SignalDetailPage({
   const source = signal.signal_sources;
   const tradeCategory = isTradeCategory(signal.category);
   const long = signal.direction === "BUY";
-  const entryForSizing = signal.entry_price ?? signal.entry_low;
-
-  const tradeHref = {
-    pathname: "/paper-trading",
-    query: {
-      symbol: signal.symbol,
-      side: signal.direction,
-      ...(entryForSizing !== null ? { entry: String(entryForSizing) } : {}),
-      ...(signal.stop_loss !== null ? { sl: String(signal.stop_loss) } : {}),
-      ...(signal.target_1 !== null ? { target: String(signal.target_1) } : {}),
-      signal: signal.id,
-    },
-  };
-
-  const tradeable =
-    tradeCategory && signal.direction !== null &&
-    (signal.status === "active" || signal.status === "triggered");
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-8 md:px-10 md:py-10">
@@ -166,21 +149,8 @@ export default async function SignalDetailPage({
 
       {tradeCategory && (
         <section>
-          {tradeable ? (
-            <Link
-              href={tradeHref}
-              className="inline-flex h-11 items-center rounded-lg bg-accent px-5 text-sm font-medium text-bg hover:bg-accent-strong"
-            >
-              Trade this on paper
-            </Link>
-          ) : (
-            <p className="text-sm text-text-faint">
-              This signal is {signal.status.replace(/_/g, " ")} and can no longer be taken.
-            </p>
-          )}
-          <p className="mt-2 text-xs text-text-faint">
-            Tradosphere never places a real-money order. Taking a signal opens a
-            simulated position filled at the live quote at the moment you submit.
+          <p className="text-sm text-text-faint">
+            This signal is {signal.status.replace(/_/g, " ")}.
           </p>
         </section>
       )}

@@ -1,171 +1,26 @@
-import { ClipboardList, ListOrdered, TrendingUpDown, Wallet } from "lucide-react";
-import { getMyOrders, getMyPaperAccount } from "@/lib/trading/actions";
-import { getTradableInstruments } from "@/lib/app-data/reads";
-import { EmptyState } from "@/components/empty-state";
-import { OrderForm } from "./order-form";
-import { OrderBook } from "./order-book";
-import { ResetAccountButton } from "./reset-account-button";
-
-export const dynamic = "force-dynamic";
-
 /**
- * The ticket accepts a prefill from a signal detail page (`?signal=…`). The
- * levels come in through the URL, but the *fill* still comes from the live
- * provider server-side — a prefilled entry price is only ever used for
- * position sizing, never as the traded price.
+ * Paper Trading is intentionally not exposed to users yet. The order
+ * ticket, order book and history UI below are deliberately not rendered
+ * here — the engine they talk to (src/lib/trading, the paper_accounts /
+ * orders / positions / trades tables and RPCs) is untouched and stays
+ * ready for a dedicated paper-trading component later.
  */
-export default async function PaperTradingPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const [{ account }, orders, instruments] = await Promise.all([
-    getMyPaperAccount(),
-    getMyOrders(),
-    getTradableInstruments(),
-  ]);
+export const dynamic = "force-static";
 
-  const one = (key: string) => {
-    const v = params[key];
-    return typeof v === "string" ? v : "";
-  };
-  const prefillSymbol = one("symbol");
-  const prefill = prefillSymbol
-    ? {
-        symbol: prefillSymbol.toUpperCase(),
-        side: one("side") === "SELL" ? ("SELL" as const) : ("BUY" as const),
-        referencePrice: one("entry"),
-        stopLoss: one("sl"),
-        target: one("target"),
-        signalId: one("signal") || null,
-      }
-    : undefined;
-
-  const resting = orders.filter((order) => order.status === "PENDING");
-  const history = orders.filter((order) => order.status !== "PENDING");
-  // Cash a resting BUY has already committed is not available to spend again.
-  const availableCash = account
-    ? account.cash_balance - account.reserved_cash
-    : 0;
-
+export default function PaperTradingPage() {
   return (
-    <div className="flex flex-1 flex-col gap-8 px-4 py-8 md:px-10 md:py-10">
-      <header>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-text">
-            <TrendingUpDown className="size-5 text-accent" aria-hidden />
-            Paper Trading
-          </h1>
-          <span className="inline-flex items-center rounded-full border border-warn/40 bg-warn/10 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-warn">
-            Simulation only — no real money
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-text-muted">
-          Orders fill at a real, live-quoted price pulled from the active
-          market-data provider; if no live quote is available the order is
-          rejected rather than filled at a guessed price.
+    <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 md:px-10">
+      <div className="w-full max-w-md rounded-2xl border border-dashed border-border bg-bg/40 px-6 py-12 text-center">
+        <span className="inline-flex items-center rounded-full border border-border bg-surface px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          Coming soon
+        </span>
+        <p className="mt-4 text-sm font-medium text-text">Paper Trading isn&apos;t available yet</p>
+        <p className="mx-auto mt-2 max-w-sm text-xs text-text-faint">
+          We&apos;re building a dedicated simulated-trading experience with live
+          market fills, position sizing and full order history. It isn&apos;t
+          switched on for accounts yet — check back soon.
         </p>
-        {account && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 text-text-muted">
-              <Wallet className="size-3.5 text-text-faint" aria-hidden />
-              Cash available:{" "}
-              <span className="text-text">
-                {account.currency} {availableCash.toLocaleString("en-IN")}
-              </span>
-            </span>
-            {account.reserved_cash > 0 && (
-              <span className="text-text-muted">
-                Blocked by open orders:{" "}
-                <span className="text-text">
-                  {account.currency} {account.reserved_cash.toLocaleString("en-IN")}
-                </span>
-              </span>
-            )}
-            <span className="text-text-muted">
-              Risk per trade: <span className="text-text">{account.risk_per_trade_pct}%</span>
-            </span>
-            <ResetAccountButton />
-          </div>
-        )}
-      </header>
-
-      <section className="rounded-2xl border border-border bg-surface p-4 md:p-6">
-        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-medium text-text">
-          <ClipboardList className="size-4 text-accent" aria-hidden />
-          Place order
-        </h2>
-        <OrderForm
-          instruments={instruments}
-          equity={account?.starting_capital ?? 0}
-          riskPct={account?.risk_per_trade_pct ?? 1}
-          availableCash={availableCash}
-          currency={account?.currency ?? "INR"}
-          prefill={prefill}
-        />
-      </section>
-
-      <OrderBook orders={resting} />
-
-      <section>
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-text">
-          <ListOrdered className="size-4 text-accent" aria-hidden />
-          Order history
-        </h2>
-        {history.length === 0 ? (
-          <EmptyState title="No orders yet" />
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-raised/40 text-left text-xs uppercase tracking-wide text-text-faint">
-                  <th className="px-4 py-2 font-normal">Symbol</th>
-                  <th className="px-4 py-2 font-normal">Type</th>
-                  <th className="px-4 py-2 font-normal">Side</th>
-                  <th className="px-4 py-2 font-normal">Qty</th>
-                  <th className="px-4 py-2 font-normal">Fill price</th>
-                  <th className="px-4 py-2 font-normal">Charges</th>
-                  <th className="px-4 py-2 font-normal">SL / Target</th>
-                  <th className="px-4 py-2 font-normal">Status</th>
-                  <th className="px-4 py-2 font-normal">Reason</th>
-                  <th className="px-4 py-2 font-normal">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-t border-border transition-colors hover:bg-surface-raised/30"
-                  >
-                    <td className="px-4 py-2 text-text">{o.symbol}</td>
-                    <td className="px-4 py-2 text-text-muted">
-                      {o.variety === "SL_M" ? "SL-M" : o.variety} · {o.product}
-                    </td>
-                    <td className={`px-4 py-2 ${o.side === "BUY" ? "text-up" : "text-down"}`}>
-                      {o.side}
-                    </td>
-                    <td className="px-4 py-2 text-text-muted">{o.quantity}</td>
-                    <td className="px-4 py-2 text-text-muted">{o.avg_fill_price ?? "—"}</td>
-                    <td className="px-4 py-2 text-text-faint">
-                      {o.status === "FILLED" ? o.total_charges.toFixed(2) : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-text-faint">
-                      {o.stop_loss ?? "—"} / {o.target_price ?? "—"}
-                    </td>
-                    <td className="px-4 py-2 text-text-muted">{o.status}</td>
-                    <td className="px-4 py-2 text-text-faint">{o.reject_reason ?? "—"}</td>
-                    <td className="px-4 py-2 text-text-faint">
-                      {new Date(o.created_at).toLocaleString("en-IN")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
+      </div>
     </div>
   );
 }

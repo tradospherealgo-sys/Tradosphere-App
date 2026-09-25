@@ -65,7 +65,7 @@ export function OptionChainPanel({ initialUnderlying }: { initialUnderlying: str
         setSettled({
           key: requestKey,
           state: "error",
-          message: "Could not reach the option-chain service.",
+          message: "Couldn't reach the option-chain service. Check your connection and try again.",
         });
       });
 
@@ -148,6 +148,11 @@ export function OptionChainPanel({ initialUnderlying }: { initialUnderlying: str
               ))
             )}
           </select>
+          {load.state === "ready" && expiries.length === 0 ? (
+            <p className="mt-1 text-xs text-text-faint">
+              No expiries available for {underlying} right now.
+            </p>
+          ) : null}
         </div>
         <button
           type="button"
@@ -280,7 +285,12 @@ async function fetchChain(
   const body = await response.json();
 
   if (!response.ok) {
-    return { state: "error", message: body?.error ?? "Failed to load the option chain." };
+    return {
+      state: "error",
+      message:
+        body?.error ??
+        "Couldn't load the option chain. Try reloading — if it keeps happening, this underlying or expiry may not be supported yet.",
+    };
   }
   return { state: "ready", ...(body as ChainResponse) };
 }

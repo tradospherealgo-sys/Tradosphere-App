@@ -4,6 +4,7 @@ import { NoneOptionChainProvider } from "./providers/none";
 import { NseUnofficialOptionChainProvider } from "./providers/nse-unofficial";
 import { SmcOptionChainProvider } from "./providers/smc";
 import { UpstoxOptionChainProvider } from "./providers/upstox";
+import { CachedOptionChainProvider } from "./cache";
 import type { OptionChainProvider } from "./types";
 
 export type { OptionChainProvider, OptionChainSnapshot, OptionLeg } from "./types";
@@ -13,12 +14,19 @@ const CONFIG_ID = "option_chain_provider";
 
 /**
  * Resolves the active option-chain provider from `integration_configs`
- * (row id 'option_chain_provider'). Same fallback contract as
- * getActiveMarketDataProvider(): always returns a usable provider, falling
- * back to NoneOptionChainProvider (explicit "no data") if nothing is
- * configured/enabled.
+ * (row id 'option_chain_provider'), wrapped in the caching/retry/breaker
+ * decorator. Same fallback contract as getActiveMarketDataProvider():
+ * always returns a usable provider, falling back to NoneOptionChainProvider
+ * (explicit "no data") if nothing is configured/enabled.
+ *
+ * The decorator is applied here, once, so no call site can accidentally
+ * bypass the cache and hammer a rate-limited upstream on every 15s refresh.
  */
 export async function getActiveOptionChainProvider(): Promise<OptionChainProvider> {
+  return new CachedOptionChainProvider(await resolveProvider());
+}
+
+async function resolveProvider(): Promise<OptionChainProvider> {
   try {
     const admin = createAdminClient();
     const { data } = await admin

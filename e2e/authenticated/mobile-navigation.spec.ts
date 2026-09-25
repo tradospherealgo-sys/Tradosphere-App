@@ -37,13 +37,11 @@ test.describe("mobile navigation", () => {
 
   test("drawer opens, navigates, and closes itself", async ({ page }) => {
     await page.getByRole("button", { name: "Open navigation" }).first().click();
-    // Scoped to the drawer's own nav: the dashboard also links to paper
-    // trading from a card, so an unscoped lookup matches two elements.
-    const link = page.locator("nav").getByRole("link", { name: "Paper Trading", exact: true });
+    const link = page.locator("nav").getByRole("link", { name: "Option Chain", exact: true });
     await expect(link).toBeVisible();
 
     await link.click();
-    await expect(page).toHaveURL(/\/paper-trading/);
+    await expect(page).toHaveURL(/\/option-chain/);
     // The drawer must not survive the navigation it triggered.
     await expect(link).toBeHidden();
   });
@@ -67,7 +65,6 @@ test.describe("mobile navigation", () => {
       "/markets",
       "/charts",
       "/option-chain",
-      "/paper-trading",
       "/portfolio",
       "/education",
       "/activity",

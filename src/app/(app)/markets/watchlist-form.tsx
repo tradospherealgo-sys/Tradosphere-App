@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createWatchlist, addWatchlistItem } from "@/lib/app-data/actions";
+import { X } from "lucide-react";
+import {
+  createWatchlist,
+  addWatchlistItem,
+  removeWatchlistItem,
+  deleteWatchlist,
+} from "@/lib/app-data/actions";
 
 type Watchlist = {
   id: string;
@@ -24,16 +30,62 @@ export function WatchlistForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const removeItem = (itemId: string) => {
+    setError(null);
+    startTransition(async () => {
+      const res = await removeWatchlistItem(itemId);
+      if (!res.ok) setError(res.error);
+    });
+  };
+
+  const removeWatchlist = (watchlistId: string) => {
+    setError(null);
+    startTransition(async () => {
+      const res = await deleteWatchlist(watchlistId);
+      if (!res.ok) setError(res.error);
+    });
+  };
+
   return (
     <div className="space-y-6">
       {watchlists.length > 0 && (
         <ul className="space-y-2">
           {watchlists.map((w) => (
             <li key={w.id} className="text-sm text-text-muted">
-              <span className="text-text">{w.name}</span>:{" "}
-              {w.watchlist_items.length === 0
-                ? "no symbols yet"
-                : w.watchlist_items.map((i) => i.symbol).join(", ")}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text">{w.name}</span>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => removeWatchlist(w.id)}
+                  className="text-xs text-text-faint hover:text-down disabled:opacity-50"
+                >
+                  Delete watchlist
+                </button>
+              </div>
+              {w.watchlist_items.length === 0 ? (
+                <p className="mt-1">no symbols yet</p>
+              ) : (
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {w.watchlist_items.map((i) => (
+                    <li
+                      key={i.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-bg px-2 py-0.5 text-xs text-text"
+                    >
+                      {i.symbol}
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => removeItem(i.id)}
+                        aria-label={`Remove ${i.symbol}`}
+                        className="text-text-faint hover:text-down disabled:opacity-50"
+                      >
+                        <X className="size-3" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>

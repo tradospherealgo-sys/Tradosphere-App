@@ -274,15 +274,9 @@ export default async function DashboardPage() {
           <SectionHeading icon={Activity}>Account &amp; performance</SectionHeading>
           <p className="text-sm text-text-muted">
             You have {money(cash, currency)} in cash and no open positions or
-            closed trades yet. Place your first paper order to start tracking
-            P&amp;L, win rate and drawdown here.
+            closed trades yet. P&amp;L, win rate and drawdown will appear here
+            once you have activity to show.
           </p>
-          <Link
-            href="/paper-trading"
-            className="mt-3 inline-flex h-11 items-center rounded-lg bg-accent px-4 text-sm font-medium text-bg hover:bg-accent-strong"
-          >
-            Place your first paper trade
-          </Link>
         </section>
       ) : (
         <>
@@ -438,14 +432,11 @@ export default async function DashboardPage() {
       <section className="rounded-2xl border border-border bg-surface p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-medium text-text"><ListOrdered className="size-4 text-accent" aria-hidden />Recent activity</h2>
-          <Link href="/paper-trading" className="text-xs text-accent">
-            Paper trading
-          </Link>
         </div>
         {recentOrders.length === 0 ? (
           <EmptyState
             title="No orders yet"
-            body="Place your first paper order from the Paper Trading section."
+            body="Activity will appear here once you have orders."
           />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5">

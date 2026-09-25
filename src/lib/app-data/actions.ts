@@ -113,6 +113,27 @@ export async function addWatchlistItem(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
+  // Reject anything not in the instrument registry before it ever reaches
+  // the table — a free-text symbol here would silently produce "no quote"
+  // downstream instead of a clear error at add-time. This check runs
+  // server-side (this is a "use server" action), but it is not the sole
+  // guard: 0034_watchlist_symbol_validation.sql enforces the same rule at
+  // the database layer via trigger, since RLS otherwise lets an
+  // authenticated client insert into watchlist_items directly and bypass
+  // this action entirely.
+  const { data: instrument } = await supabase
+    .from("instruments")
+    .select("symbol")
+    .eq("symbol", normalized)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!instrument) {
+    return {
+      ok: false,
+      error: `${normalized} is not a recognized, tradable symbol.`,
+    };
+  }
+
   // RLS scopes watchlists to the owner, so a forged watchlistId matches no
   // row and the insert's FK check fails rather than writing to someone else's.
   const { error } = await supabase
@@ -125,6 +146,48 @@ export async function addWatchlistItem(
         error.code === "23505"
           ? `${normalized} is already on this watchlist.`
           : dbErrorMessage("addWatchlistItem", error, "Could not add that symbol."),
+    };
+  }
+  revalidatePath("/markets");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function removeWatchlistItem(itemId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  // RLS scopes watchlist_items to the owner (via the parent watchlist), so a
+  // forged itemId simply matches no row rather than deleting someone else's.
+  const { error } = await supabase.from("watchlist_items").delete().eq("id", itemId);
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("removeWatchlistItem", error, "Could not remove that symbol."),
+    };
+  }
+  revalidatePath("/markets");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function deleteWatchlist(watchlistId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  // RLS scopes watchlists to the owner; watchlist_items cascade-delete via
+  // the FK's `on delete cascade` (0001_schema.sql).
+  const { error } = await supabase.from("watchlists").delete().eq("id", watchlistId);
+  if (error) {
+    return {
+      ok: false,
+      error: dbErrorMessage("deleteWatchlist", error, "Could not delete the watchlist."),
     };
   }
   revalidatePath("/markets");

@@ -36,6 +36,14 @@ import type {
  *   Retry      — one bounded retry with backoff for transient failures only.
  *                A provider that returns "no data" is not retried: that is a
  *                real answer, not an error.
+ *   Breaker    — once a provider has failed enough consecutive calls to look
+ *                genuinely down (not one thin scrip with no data — the
+ *                provider itself erroring), further calls skip upstream
+ *                entirely for a cooldown window and behave exactly like
+ *                another failed call: null, same as today. This is what
+ *                keeps every dashboard load across every open session from
+ *                each independently retrying a provider that is already
+ *                known to be down.
  */
 
 type CacheEntry<T> = { value: T; storedAt: number };
@@ -55,6 +63,14 @@ const CANDLE_TTL_MS: Record<CandleInterval, number> = {
 
 const MAX_CACHE_ENTRIES = 500;
 const RETRY_DELAY_MS = 250;
+
+// Consecutive fully-failed calls (each already past its own retry) before a
+// provider is treated as down; how long it then stays skipped.
+const BREAKER_THRESHOLD = 3;
+const BREAKER_COOLDOWN_MS = 30_000;
+
+type BreakerState = { consecutiveFailures: number; openUntil: number };
+const breakers = new Map<string, BreakerState>();
 
 export class CachedMarketDataProvider implements MarketDataProvider {
   readonly name: string;
@@ -78,7 +94,7 @@ export class CachedMarketDataProvider implements MarketDataProvider {
     if (cached && isQuoteFresh(cached, options)) return cached.value;
 
     const quote = await dedupe(key, () =>
-      withRetry(() => this.inner.getQuote(symbol))
+      withRetry(this.name, () => this.inner.getQuote(symbol))
     );
     if (!quote) return null;
 
@@ -111,7 +127,7 @@ export class CachedMarketDataProvider implements MarketDataProvider {
 
     // Batch endpoints exist precisely to avoid N round trips, so the misses
     // go to the provider's own batch path rather than a loop of getQuote.
-    const fetched = await withRetry(() => this.inner.getQuotes(misses));
+    const fetched = await withRetry(this.name, () => this.inner.getQuotes(misses));
     const accepted = (fetched ?? []).filter(
       (q) => options.maxStaleMs === undefined || quoteAgeMs(q) <= options.maxStaleMs
     );
@@ -148,7 +164,7 @@ export class CachedMarketDataProvider implements MarketDataProvider {
     }
 
     const candles = await dedupe(key, () =>
-      withRetry(() => this.inner.getHistoricalCandles(symbol, interval, from, to))
+      withRetry(this.name, () => this.inner.getHistoricalCandles(symbol, interval, from, to))
     );
     if (!candles || candles.length === 0) return [];
 
@@ -189,22 +205,40 @@ async function dedupe<T>(key: string, run: () => Promise<T>): Promise<T> {
 }
 
 /**
- * One bounded retry for transient failures. Providers in this codebase
- * signal "no data" by returning null/[] rather than throwing, so a thrown
- * error is exactly the transient case (socket reset, DNS blip) worth
- * retrying — and a null result is a real answer that must not be.
+ * One bounded retry for transient failures, gated by a per-provider circuit
+ * breaker. Providers in this codebase signal "no data" by returning null/[]
+ * rather than throwing, so a thrown error is exactly the transient case
+ * (socket reset, DNS blip) worth retrying — and a null result is a real
+ * answer that must not be.
  */
-async function withRetry<T>(run: () => Promise<T>): Promise<T | null> {
+async function withRetry<T>(breakerKey: string, run: () => Promise<T>): Promise<T | null> {
+  const breaker = breakers.get(breakerKey);
+  if (breaker && Date.now() < breaker.openUntil) return null;
+
   try {
-    return await run();
+    const result = await run();
+    breakers.delete(breakerKey);
+    return result;
   } catch {
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     try {
-      return await run();
+      const result = await run();
+      breakers.delete(breakerKey);
+      return result;
     } catch {
+      recordBreakerFailure(breakerKey);
       return null;
     }
   }
+}
+
+function recordBreakerFailure(key: string): void {
+  const state = breakers.get(key) ?? { consecutiveFailures: 0, openUntil: 0 };
+  state.consecutiveFailures += 1;
+  if (state.consecutiveFailures >= BREAKER_THRESHOLD) {
+    state.openUntil = Date.now() + BREAKER_COOLDOWN_MS;
+  }
+  breakers.set(key, state);
 }
 
 /** Bounded LRU-ish eviction: drop the oldest insertion once over capacity. */
@@ -284,4 +318,5 @@ export function __clearMarketDataCaches(): void {
   quoteCache.clear();
   candleCache.clear();
   inFlight.clear();
+  breakers.clear();
 }
