@@ -1,0 +1,92 @@
+{
+  "name": "Tradosphere — Upstox Token Monitor",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Read Me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 80],
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Upstox Token Monitor\n\nReplaces the Vercel cron entry `/api/cron/check-market-data-token` (see `vercel.json`) — same endpoint, same schedule, just triggered by n8n instead of Vercel so it lives alongside the other Tradosphere n8n workflows.\n\nUpstox has no refresh token; its session token expires daily and only an interactive login can produce a new one. This route can't fix that — it just detects the failure promptly and pages an admin. See `src/app/api/cron/check-market-data-token/route.ts` for the full rationale.\n\n**Do not remove the Vercel cron entry until this workflow has been verified to fire correctly on its own schedule.**"
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Credentials Needed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 340],
+      "parameters": {
+        "width": 420,
+        "height": 160,
+        "content": "## Credential\n\n**Check Upstox Token** needs an HTTP Header Auth credential named `Market Data Cron Auth`:\n\n- Header name: `Authorization`\n- Header value: `Bearer <CRON_SECRET>` (the same `CRON_SECRET` env var the Vercel deployment uses)\n\nIf a credential with that name already exists in this n8n instance, reuse it — otherwise create it once and it'll be reusable for other Tradosphere cron migrations."
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Upstox Token Monitor Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3-10 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Check Upstox Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://tradosphere-app.vercel.app/api/cron/check-market-data-token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "notes": "Mirrors the Vercel cron entry for this path (GET, weekdays, 03:00-10:00 UTC ≈ 08:30-15:30 IST market hours). The route alerts admins internally on an ok->not-ok transition, so this node just needs to fire on schedule.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_SET_ON_IMPORT",
+          "name": "Market Data Cron Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Upstox Token Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "Check Upstox Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

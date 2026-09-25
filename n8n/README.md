@@ -53,3 +53,15 @@ Every incoming message is matched against `signal_sources.telegram_chat_id` / `w
 - WhatsApp Business Cloud API only receives messages sent to your own business number — it cannot read arbitrary community WhatsApp groups you don't administer. The 3 WhatsApp source groups need to relay into that number first; this is a Meta platform constraint.
 - SMC Auto Trender node is a placeholder until official API access is granted.
 - This workflow is entirely additive — it does not touch or replace the existing single-bot rule-based path at `src/lib/signals/ingest.ts`.
+
+---
+
+# Upstox Token Monitor — n8n setup checklist
+
+Moves the `/api/cron/check-market-data-token` schedule out of Vercel Cron (see `vercel.json`) and into n8n, next to the other Tradosphere workflows. Read the in-file sticky notes in `upstox-token-monitor.json` for the "why" — this is the ordered checklist to actually execute.
+
+1. **Import.** Workflows → Import from File → `n8n/upstox-token-monitor.json`. 2 functional nodes (plus 2 sticky notes): a Schedule Trigger and an HTTP Request node.
+2. **Bind the credential.** The HTTP Request node ("Check Upstox Token") needs an HTTP Header Auth credential named `Market Data Cron Auth` — header `Authorization: Bearer <CRON_SECRET>`, using the same `CRON_SECRET` value configured on the Vercel project. Reuse an existing credential of that name if one is already present in this n8n instance; otherwise create it.
+3. **Check the timezone.** The workflow's `settings.timezone` is explicitly set to `UTC` so the cron expression `0 3-10 * * 1-5` (weekdays, 03:00–10:00 UTC ≈ 08:30–15:30 IST) fires at the same wall-clock times the Vercel cron did. Don't rely on the n8n instance's default timezone — it may be IST, which would shift every run by 5.5 hours.
+4. **Activate and verify manually first.** Toggle the workflow to Active, then trigger "Check Upstox Token" manually (or wait for the next scheduled tick) and confirm a `200` with `{"checked": {...}}` in the execution log — without ever printing the `CRON_SECRET` value anywhere.
+5. **Only after that passes**, remove the `/api/cron/check-market-data-token` entry from `vercel.json`'s `crons` array so the check isn't running twice.
